@@ -1,0 +1,309 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{setspace}
+
+\geometry{margin=2.5cm}
+\onehalfspacing
+
+\title{
+Link Prediction in Citation Networks using Graph Neural Networks\\
+\large Master-Level Graph Neural Networks Course Project Proposal
+}
+
+\author{
+Sándor Baranyi \\ \texttt{ct9xfj@inf.elte.hu}
+\and
+Balázs Bordács \\ \texttt{adjdme@inf.elte.hu}
+\and
+Máté Kovács \\ \texttt{u5bky4@inf.elte.hu}
+\and
+Bence Adorján Nagy-Mohos \\ \texttt{d5vd5e@inf.elte.hu}
+}
+
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+
+This project investigates the use of Graph Neural Networks (GNNs) for link prediction
+in citation networks using benchmark datasets such as Cora and PubMed.
+The goal is to model citation graphs and recommend relevant papers to cite for a given paper.
+We compare classical link prediction methods with neural approaches,
+including Graph Convolutional Networks and GraphSAGE.
+Additional experiments investigate the effect of structural encodings and
+directed versus undirected graph modeling.
+The project focuses on reproducible, CPU-friendly experiments using standard dataset splits.
+
+\end{abstract}
+
+
+\section{Introduction}
+
+Graph-structured data appears in many real-world applications,
+including social networks, biological networks, and citation networks.
+Citation graphs represent relationships between scientific papers,
+where nodes correspond to papers and edges represent citation links.
+
+Predicting missing links in citation networks can be interpreted as
+recommending relevant references for a given paper.
+This task is important for recommendation systems, knowledge graph completion,
+and scientific information retrieval.
+
+Graph Neural Networks (GNNs) have recently shown strong performance
+on graph learning tasks.
+In this project, we investigate whether simple GNN architectures
+can outperform classical link prediction methods
+on citation graph benchmarks.
+
+
+\section{Problem Definition}
+
+We model a citation network as a graph
+
+\[
+G = (V, E)
+\]
+
+where
+
+\begin{itemize}
+\item $V$ is the set of papers
+\item $E$ is the set of citation edges
+\end{itemize}
+
+The task is link prediction.
+
+Given two nodes $u$ and $v$, the goal is to predict
+whether a citation edge should exist between them.
+
+This can be formulated as a binary classification problem
+over node pairs.
+
+
+\section{Objectives and Research Questions}
+
+The main objective of the project is to evaluate the effectiveness
+of Graph Neural Networks for link prediction in citation networks.
+
+Research questions:
+
+\begin{itemize}
+\item Do GNN-based methods outperform classical link prediction methods?
+\item Does structural encoding improve link prediction accuracy?
+\item Does modeling the graph as directed improve performance?
+\item Can simple GNN models achieve good results without GPU training?
+\end{itemize}
+
+
+\section{Novelty and Motivation}
+
+Citation datasets are commonly used for node classification,
+but link prediction is less explored in course-level projects.
+
+This project focuses on:
+
+\begin{itemize}
+\item link prediction instead of node classification
+\item comparison of classical and neural methods
+\item structural and positional encodings
+\item directed vs undirected citation graphs
+\end{itemize}
+
+The goal is to analyze how much benefit GNNs provide
+over simpler graph algorithms.
+
+
+\section{Dataset Audit}
+
+We use standard benchmark citation datasets.
+
+\subsection{Cora}
+
+\begin{itemize}
+\item Nodes: 2708
+\item Edges: 5429
+\item Features: bag-of-words
+\item Classes: 7
+\end{itemize}
+
+\subsection{PubMed}
+
+\begin{itemize}
+\item Nodes: 19717
+\item Edges: 44338
+\item Features: TF-IDF vectors
+\end{itemize}
+
+Datasets are loaded using PyTorch Geometric
+with standard train/test splits.
+
+Limitations:
+
+\begin{itemize}
+\item small graph size
+\item sparse edges
+\item limited feature information
+\end{itemize}
+
+
+\section{Literature Review}
+
+The project builds on the following works.
+
+\begin{itemize}
+
+\item Kipf and Welling — Graph Convolutional Networks
+
+\item Hamilton et al. — GraphSAGE
+
+\item Grover and Leskovec — Node2Vec
+
+\item Page et al. — PageRank
+
+\item Zhang and Chen — Link Prediction with Graph Neural Networks
+
+\item Dwivedi et al. — Benchmarking Graph Neural Networks
+
+\end{itemize}
+
+These papers provide baseline methods
+and motivation for the proposed experiments.
+
+
+\section{Baseline Methods}
+
+We implement classical link prediction methods.
+
+\begin{itemize}
+\item Common Neighbors
+\item Adamic-Adar
+\item PageRank
+\item Node2Vec embeddings
+\end{itemize}
+
+These serve as non-neural baselines.
+
+
+\section{GNN Models}
+
+We implement simple Graph Neural Networks.
+
+\begin{itemize}
+\item Graph Convolutional Network (GCN)
+\item GraphSAGE
+\end{itemize}
+
+Implementation will use PyTorch Geometric.
+
+
+\section{Research Extensions}
+
+We plan to experiment with:
+
+\begin{itemize}
+\item positional encodings
+\item structural features
+\item directed vs undirected graphs
+\item different embedding sizes
+\item different number of layers
+\end{itemize}
+
+
+\section{Evaluation}
+
+Metrics:
+
+\begin{itemize}
+\item Accuracy
+\item AUC
+\item Precision
+\item Recall
+\item F1 score
+\end{itemize}
+
+We use fixed dataset splits
+to ensure reproducibility.
+
+
+\section{Reproducibility Plan}
+
+\begin{itemize}
+\item GitHub repository
+\item fixed random seeds
+\item CPU-friendly experiments
+\item PyTorch Geometric
+\item documented environment
+\end{itemize}
+
+
+\section{Work Plan}
+
+\begin{tabular}{ll}
+Week 5 & Proposal \\
+Week 6 & Dataset audit \\
+Week 7 & Baselines \\
+Week 8 & GNN implementation \\
+Week 9 & Experiments \\
+Week 10 & Final report \\
+\end{tabular}
+
+
+\section{Risks and Limitations}
+
+\begin{itemize}
+\item small datasets
+\item overfitting
+\item implementation complexity
+\item time limitations
+\end{itemize}
+
+
+\section{Conclusion}
+
+This project investigates link prediction in citation networks
+using classical graph algorithms and Graph Neural Networks.
+The goal is to evaluate the usefulness of GNNs
+in a reproducible and CPU-friendly experimental setup.
+
+
+\begin{thebibliography}{9}
+
+\bibitem{gcn}
+Kipf, T. N., Welling, M.
+Semi-Supervised Classification with Graph Convolutional Networks.
+
+\bibitem{sage}
+Hamilton, W., Ying, Z., Leskovec, J.
+Inductive Representation Learning on Large Graphs.
+
+\bibitem{node2vec}
+Grover, A., Leskovec, J.
+node2vec: Scalable Feature Learning for Networks.
+
+\bibitem{pagerank}
+Page, L. et al.
+The PageRank Citation Ranking.
+
+\bibitem{seal}
+Zhang, M., Chen, Y.
+Link Prediction Based on Graph Neural Networks.
+
+\bibitem{benchmark}
+Dwivedi, V. et al.
+Benchmarking Graph Neural Networks.
+
+\end{thebibliography}
+
+\end{document}
