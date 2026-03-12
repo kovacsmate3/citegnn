@@ -20,13 +20,13 @@ Link Prediction in Citation Networks using Graph Neural Networks\\
 }
 
 \author{
-Sándor Baranyi \\ \texttt{ct9xfj@inf.elte.hu}
+S\'andor Baranyi \\ \texttt{ct9xfj@inf.elte.hu}
 \and
-Balázs Bordács \\ \texttt{adjdme@inf.elte.hu}
+Bal\'azs Bord\'acs \\ \texttt{adjdme@inf.elte.hu}
 \and
-Máté Kovács \\ \texttt{u5bky4@inf.elte.hu}
+M\'at\'e Kov\'acs \\ \texttt{u5bky4@inf.elte.hu}
 \and
-Bence Adorján Nagy-Mohos \\ \texttt{d5vd5e@inf.elte.hu}
+Adorj\'an Bence Nagy-Mohos \\ \texttt{d5vd5e@inf.elte.hu}
 }
 
 \date{\today}
@@ -67,7 +67,6 @@ In this project, we investigate whether simple GNN architectures
 can outperform classical link prediction methods
 on citation graph benchmarks.
 
-
 \section{Problem Definition}
 
 We model a citation network as a graph
@@ -88,9 +87,7 @@ The task is link prediction.
 Given two nodes $u$ and $v$, the goal is to predict
 whether a citation edge should exist between them.
 
-This can be formulated as a binary classification problem
-over node pairs.
-
+This can be formulated as a binary classification problem over node pairs.
 
 \section{Objectives and Research Questions}
 
@@ -106,24 +103,21 @@ Research questions:
 \item Can simple GNN models achieve good results without GPU training?
 \end{itemize}
 
-
 \section{Novelty and Motivation}
 
 Citation datasets are commonly used for node classification,
 but link prediction is less explored in course-level projects.
 
 This project focuses on:
-
 \begin{itemize}
-\item link prediction instead of node classification
-\item comparison of classical and neural methods
-\item structural and positional encodings
-\item directed vs undirected citation graphs
+\item link prediction instead of node classification,
+\item comparison of classical and neural methods,
+\item structural and positional encodings,
+\item directed vs. undirected citation graphs.
 \end{itemize}
 
 The goal is to analyze how much benefit GNNs provide
 over simpler graph algorithms.
-
 
 \section{Dataset Audit}
 
@@ -146,41 +140,25 @@ We use standard benchmark citation datasets.
 \item Features: TF-IDF vectors
 \end{itemize}
 
-Datasets are loaded using PyTorch Geometric
-with standard train/test splits.
+Datasets are loaded using PyTorch Geometric with standard train/test splits.
+Relevant properties of the citation benchmarks are documented in prior work on collective
+classification and query-driven surveying on network data \cite{sen2008collective,namata2012query}.
 
-Limitations:
-
-\begin{itemize}
-\item small graph size
-\item sparse edges
-\item limited feature information
-\end{itemize}
-
+Limitations include small graph size, sparse edges, and limited feature information.
 
 \section{Literature Review}
 
-The project builds on the following works.
+The project builds on several influential works.
+Kipf and Welling introduced the Graph Convolutional Network (GCN),
+a simple and effective spectral approximation for learning on attributed graphs \cite{kipf2017semi}.
+Hamilton, Ying, and Leskovec proposed GraphSAGE,
+an inductive framework that aggregates neighborhood information and generalizes to unseen nodes \cite{hamilton2017inductive}.
+Grover and Leskovec presented node2vec, a random-walk-based embedding method that remains a strong classical baseline for graph representation learning \cite{grover2016node2vec}.
+The PageRank algorithm provides a foundational graph-ranking baseline that can also be adapted for citation recommendation settings \cite{page1999pagerank}.
 
-\begin{itemize}
-
-\item Kipf and Welling — Graph Convolutional Networks
-
-\item Hamilton et al. — GraphSAGE
-
-\item Grover and Leskovec — Node2Vec
-
-\item Page et al. — PageRank
-
-\item Zhang and Chen — Link Prediction with Graph Neural Networks
-
-\item Dwivedi et al. — Benchmarking Graph Neural Networks
-
-\end{itemize}
-
-These papers provide baseline methods
-and motivation for the proposed experiments.
-
+For link prediction specifically, Zhang and Chen proposed SEAL,
+which learns from enclosing subgraphs with GNNs and provides a strong neural reference point for the task \cite{zhang2018link}.
+Finally, benchmarking work by Dwivedi et al. highlights the importance of fair, reproducible GNN evaluation and motivates careful experimental design \cite{dwivedi2023benchmarking}.
 
 \section{Baseline Methods}
 
@@ -189,24 +167,22 @@ We implement classical link prediction methods.
 \begin{itemize}
 \item Common Neighbors
 \item Adamic-Adar
-\item PageRank
+\item PageRank-inspired ranking
 \item Node2Vec embeddings
 \end{itemize}
 
-These serve as non-neural baselines.
-
+These serve as non-neural baselines against the GNN approaches.
 
 \section{GNN Models}
 
 We implement simple Graph Neural Networks.
 
 \begin{itemize}
-\item Graph Convolutional Network (GCN)
-\item GraphSAGE
+\item Graph Convolutional Network (GCN) \cite{kipf2017semi}
+\item GraphSAGE \cite{hamilton2017inductive}
 \end{itemize}
 
 Implementation will use PyTorch Geometric.
-
 
 \section{Research Extensions}
 
@@ -219,7 +195,6 @@ We plan to experiment with:
 \item different embedding sizes
 \item different number of layers
 \end{itemize}
-
 
 \section{Evaluation}
 
@@ -236,7 +211,6 @@ Metrics:
 We use fixed dataset splits
 to ensure reproducibility.
 
-
 \section{Reproducibility Plan}
 
 \begin{itemize}
@@ -247,18 +221,20 @@ to ensure reproducibility.
 \item documented environment
 \end{itemize}
 
-
 \section{Work Plan}
 
 \begin{tabular}{ll}
-Week 5 & Proposal \\
-Week 6 & Dataset audit \\
-Week 7 & Baselines \\
-Week 8 & GNN implementation \\
-Week 9 & Experiments \\
-Week 10 & Final report \\
+\toprule
+Week & Task \\
+\midrule
+5 & Proposal \\
+6 & Dataset audit \\
+7 & Baselines \\
+8 & GNN implementation \\
+9 & Experiments \\
+10 & Final report \\
+\bottomrule
 \end{tabular}
-
 
 \section{Risks and Limitations}
 
@@ -269,7 +245,6 @@ Week 10 & Final report \\
 \item time limitations
 \end{itemize}
 
-
 \section{Conclusion}
 
 This project investigates link prediction in citation networks
@@ -278,32 +253,7 @@ The goal is to evaluate the usefulness of GNNs
 in a reproducible and CPU-friendly experimental setup.
 
 
-\begin{thebibliography}{9}
-
-\bibitem{gcn}
-Kipf, T. N., Welling, M.
-Semi-Supervised Classification with Graph Convolutional Networks.
-
-\bibitem{sage}
-Hamilton, W., Ying, Z., Leskovec, J.
-Inductive Representation Learning on Large Graphs.
-
-\bibitem{node2vec}
-Grover, A., Leskovec, J.
-node2vec: Scalable Feature Learning for Networks.
-
-\bibitem{pagerank}
-Page, L. et al.
-The PageRank Citation Ranking.
-
-\bibitem{seal}
-Zhang, M., Chen, Y.
-Link Prediction Based on Graph Neural Networks.
-
-\bibitem{benchmark}
-Dwivedi, V. et al.
-Benchmarking Graph Neural Networks.
-
-\end{thebibliography}
+\bibliographystyle{plain}
+\bibliography{references}
 
 \end{document}
