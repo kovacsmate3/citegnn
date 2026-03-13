@@ -96,18 +96,18 @@ provide measurable benefits over classical methods on citation network benchmark
 
 \subsection{Research Questions}
 \begin{itemize}
-    \item RQ1: Do feature-aware GNN models outperform classical link prediction baselines on citation graphs?
-    \item RQ2: Does preserving citation directionality improve predictive performance compared to symmetrized graphs?
-    \item RQ3: Do lightweight structural or positional augmentations improve the performance of simple GNN baselines?
-    \item RQ4: Can all experiments be executed reproducibly on CPU within the project constraints?
+    \item \textbf{RQ1:} Do feature-aware GNN models outperform classical link prediction baselines on citation graphs?
+    \item \textbf{RQ2:} Does preserving citation directionality improve predictive performance compared to symmetrized graphs?
+    \item \textbf{RQ3:} Do lightweight structural or positional augmentations improve the performance of simple GNN baselines?
+    \item \textbf{RQ4:} Can all experiments be executed reproducibly on CPU within the project constraints?
 \end{itemize}
 
 \subsection{Hypotheses}
 \begin{itemize}
-    \item H1: GCN and GraphSAGE will outperform local heuristic baselines because they combine graph structure with node features.
-    \item H2: Directed modeling will outperform undirected modeling because citation relations are inherently asymmetric.
-    \item H3: Adding lightweight structural or positional information will improve link prediction over plain message passing.
-    \item H4: A controlled experimental pipeline based on Cora and PubMed, together with lightweight baselines and shallow GNN models, will be feasible to run reproducibly on CPU without requiring specialized hardware.
+    \item \textbf{H1:} GCN and GraphSAGE will outperform local heuristic baselines because they combine graph structure with node features.
+    \item \textbf{H2:} Directed modeling will outperform undirected modeling because citation relations are inherently asymmetric.
+    \item \textbf{H3:} Adding lightweight structural or positional information will improve link prediction over plain message passing.
+    \item \textbf{H4:} A controlled experimental pipeline based on Cora and PubMed, together with lightweight baselines and shallow GNN models, will be feasible to run reproducibly on CPU without requiring specialized hardware.
 \end{itemize}
 
 \section{Novelty and Motivation}
@@ -284,18 +284,6 @@ This is an important caveat for our project.
 Results on Cora or PubMed should be interpreted as evidence on controlled benchmarks,
 not as definitive proof of effectiveness in recommending production-scale citations.
 
-Overall, the literature suggests three main conclusions that motivate our project.
-First, citation graphs are a well-established and meaningful domain for graph learning research.
-Second, both classical methods and GNNs provide strong but conceptually different approaches
-to link prediction.
-Third, structural information beyond raw node embeddings --- such as local subgraphs,
-positional encodings, or explicit directionality --- may substantially improve performance.
-Our project builds on these insights by comparing classical heuristics,
-node embedding methods, and simple GNN architectures in a unified and reproducible setting.
-Rather than aiming for architectural novelty,
-we focus on careful comparison and analysis of which components matter most
-for citation link prediction under realistic course-level constraints.
-
 \section{Methodology}
 
 Our pipeline consists of four stages:
@@ -307,37 +295,37 @@ Our pipeline consists of four stages:
 \end{enumerate}
 
 For the GNN models, we use an encoder--decoder setup.
-The encoder computes node embeddings $z_u$ and $z_v$ from the node features and graph structure,
-while the decoder assigns a link score to a candidate edge $(u,v)$.
-As a simple baseline decoder, we will use either dot-product scoring or a small MLP over concatenated node embeddings.
+The encoder computes node embeddings $z_u$ and $z_v$ from the node features and graph structure.
+The decoder then assigns a link score $s(u,v)$ to a candidate edge $(u,v)$. We will evaluate two simple decoder functions:
+\begin{itemize}
+    \item \textbf{Dot-Product Scoring:} $s(u,v) = z_u^T z_v$
+    \item \textbf{MLP Scoring:} $s(u,v) = \mathrm{MLP}(z_u \parallel z_v)$ or $s(u,v) = \mathrm{MLP}(z_u \odot z_v)$
+\end{itemize}
 
 To keep the comparison fair, all methods will use the same edge split, the same random seeds,
 and the same negative sampling policy whenever possible.
 
 \section{Baseline Methods}
 
-We use three types of non-neural baselines:
+As detailed in the literature review, we use three types of non-neural baselines to isolate the performance gains of neural message passing:
 \begin{itemize}
-\item local heuristic methods such as Common Neighbors and Adamic--Adar,
-\item node2vec embeddings with an edge scoring function,
-\item an auxiliary PageRank-based ranking signal.
+\item \textbf{Local heuristic methods:} Common Neighbors and Adamic--Adar.
+\item \textbf{Unsupervised Embeddings:} node2vec \cite{grover2016node2vec} embeddings combined with the aforementioned edge scoring functions.
+\item \textbf{Global structural ranking:} PageRank \cite{page1999pagerank}, included as a lightweight structural reference rather than as a direct pairwise link predictor.
 \end{itemize}
-
-The first two categories serve as the main non-neural baselines against the GNN approaches,
-while PageRank is included as a lightweight structural reference rather than as a direct pairwise link predictor.
 
 \section{GNN Models}
 
-We use two simple and well-established GNN encoders:
+We use two simple and well-established GNN encoders implemented via PyTorch Geometric:
 
 \begin{itemize}
-\item \textbf{GCN:} a lightweight transductive message-passing baseline \cite{kipf2017semi}
-\item \textbf{GraphSAGE:} an inductive neighborhood aggregation baseline \cite{hamilton2017inductive}
+\item \textbf{GCN:} a lightweight transductive message-passing baseline \cite{kipf2017semi}.
+\item \textbf{GraphSAGE:} an inductive neighborhood aggregation baseline \cite{hamilton2017inductive}.
 \end{itemize}
 
 These models are deliberately simple.
 The goal of the project is not to propose a new architecture,
-but to determine whether standard GNN encoders already provide advantages on citation link prediction.
+but to determine whether standard feature-aware GNN encoders already provide advantages on citation link prediction compared to structural heuristics.
 
 Both models will first be evaluated in a plain configuration.
 Later, ablations will investigate whether their performance changes under directed graph modeling
@@ -349,7 +337,7 @@ To keep the project focused, we define one primary and one secondary research le
 
 \subsection{Primary Lever: Directed vs.\ Undirected Citation Modeling}
 Citation graphs are naturally directional, but many GNN pipelines symmetrize the graph for convenience.
-We will compare:
+We will ablate the models against:
 \begin{itemize}
     \item directed citation modeling,
     \item symmetrized (undirected) citation modeling.
@@ -357,14 +345,14 @@ We will compare:
 
 \subsection{Secondary Lever: Structural or Positional Augmentation}
 We will augment the baseline GNNs with lightweight structural or positional information,
-for example, degree-based features or simple positional encodings.
+for example, degree-based features or simple Laplacian eigenvectors.
 The exact augmentation will be chosen so that it remains CPU-friendly and easy to reproduce.
 
 \subsection{Planned Ablations}
 \begin{itemize}
-    \item plain GNN vs.\ GNN + structural/positional augmentation,
-    \item directed vs.\ undirected graph construction,
-    \item shallow vs.\ slightly deeper encoder configuration.
+    \item Plain GNN vs.\ GNN + structural/positional augmentation.
+    \item Directed vs.\ undirected graph construction.
+    \item Shallow vs.\ slightly deeper encoder configuration.
 \end{itemize}
 
 \section{Evaluation}
@@ -378,14 +366,14 @@ which allows us to report MRR and Hits@10 in addition to classification metrics.
 
 \subsection{Primary Metrics}
 \begin{itemize}
-    \item ROC-AUC
-    \item Average Precision (AP)
+    \item \textbf{ROC-AUC} (Area Under the Receiver Operating Characteristic Curve)
+    \item \textbf{AP} (Average Precision)
 \end{itemize}
 
 \subsection{Secondary Metrics}
 \begin{itemize}
-    \item MRR
-    \item Hits@10
+    \item \textbf{MRR} (Mean Reciprocal Rank)
+    \item \textbf{Hits@10}
 \end{itemize}
 
 Accuracy, precision, recall, and F1 may also be reported for completeness,
@@ -394,7 +382,7 @@ because link prediction depends strongly on the choice and ratio of negative sam
 
 \subsection{Fairness and Leakage Control}
 Special care will be taken to avoid information leakage across splits,
-especially in the undirected setting where reverse edges may otherwise appear in different partitions.
+especially in the undirected setting where reverse edges ($v \rightarrow u$) may otherwise inadvertently appear in different partitions than forward edges ($u \rightarrow v$).
 
 \section{Reproducibility Plan}
 
@@ -408,34 +396,31 @@ All reported experiments will be designed to run on CPU under the course constra
 
 \begin{table}[ht]
 \centering
-\begin{tabular}{lp{10cm}}
+\begin{tabular}{lp{12cm}}
 \toprule
-Week & Planned work \\
+\textbf{Week} & \textbf{Planned work} \\
 \midrule
 5  & Finalize proposal, repository scaffold, dataset audit, and evaluation protocol. \\
 6  & Implement data loading, reproducible edge splits, and heuristic baselines. \\
 7  & Implement node2vec baseline and first evaluation pipeline. \\
 8  & Implement GCN and GraphSAGE link prediction baselines. \\
-9  & Run baseline experiments and first ablations on directionality. \\
+9  & Run baseline experiments and first ablations on directionality. Submit Midterm Report. \\
 10--11 & Add structural/positional augmentation and analyze secondary ablations. \\
 12 & Consolidate results, tables, and reproducibility scripts. \\
 13 & Final report, trained models/demo, and presentation. \\
 \bottomrule
 \end{tabular}
-\caption{Planned timeline for the project.}
+\caption{Planned timeline aligned with project milestones.}
 \end{table}
 
 \section{Risks and Limitations}
 
 \begin{itemize}
     \item \textbf{Benchmark simplicity:} Cora and PubMed are useful, but small, and may not reflect realistic recommendation settings.
-    \item \textbf{Data leakage:} careless splitting can leak reverse-edge information between partitions.
-    \item \textbf{Overfitting:} small graphs may favor overly tuned models.
-    \item \textbf{Scope creep:} too many levers would weaken the experimental focus.
+    \item \textbf{Data leakage:} Careless splitting can leak reverse-edge information between partitions.
+    \item \textbf{Overfitting:} Small, sparse graphs may favor overly tuned models. We will employ early stopping and regularized, shallow GNNs to mitigate this.
+    \item \textbf{Scope creep:} Too many levers would weaken the experimental focus. We are restricting ourselves to two specific ablations (Directionality and Structural Encodings).
 \end{itemize}
-
-To mitigate these risks, we limit ourselves to simple baselines, fixed splits, small ablation sets,
-and a single primary research lever.
 
 \section{Conclusion}
 
