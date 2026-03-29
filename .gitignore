@@ -4,4 +4,6 @@ __pycache__/
 *.pyo
 
 data/
+!src/*/data
+artifacts/
 .vscode/
