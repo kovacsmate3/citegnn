@@ -1,0 +1,2 @@
+"""CiteGNN package."""
+
