@@ -36,6 +36,20 @@ class LinkPredictionSplit:
     test_neg_edge_index: Tensor
 
 
+def _edge_pairs(edge_index: Tensor, *, is_undirected: bool) -> set[tuple[int, int]]:
+    """Convert an edge index into hashable edge pairs for overlap checks."""
+
+    if edge_index.dim() != 2 or edge_index.size(0) != 2:
+        raise ValueError("edge_index must have shape [2, num_edges]")
+
+    pairs: set[tuple[int, int]] = set()
+    for source, target in edge_index.t().tolist():
+        if is_undirected and source > target:
+            source, target = target, source
+        pairs.add((int(source), int(target)))
+    return pairs
+
+
 def _validate_ratios(val_ratio: float, test_ratio: float) -> None:
     if not 0.0 < val_ratio < 1.0:
         raise ValueError("val_ratio must be in (0, 1)")
@@ -58,6 +72,38 @@ def _split_labeled_edges(
     pos_edges = edge_label_index[:, labels]
     neg_edges = edge_label_index[:, ~labels]
     return pos_edges.contiguous(), neg_edges.contiguous()
+
+
+def validate_link_prediction_split(split: LinkPredictionSplit) -> None:
+    """Check that held-out positives do not leak into the training graph."""
+
+    train_pairs = _edge_pairs(
+        split.train_graph_edge_index,
+        is_undirected=split.is_undirected,
+    )
+    train_supervision_pairs = _edge_pairs(
+        split.train_pos_edge_index,
+        is_undirected=split.is_undirected,
+    )
+    val_pairs = _edge_pairs(
+        split.val_pos_edge_index,
+        is_undirected=split.is_undirected,
+    )
+    test_pairs = _edge_pairs(
+        split.test_pos_edge_index,
+        is_undirected=split.is_undirected,
+    )
+
+    if train_pairs & val_pairs:
+        raise ValueError("validation positive edges leak into the training graph")
+    if train_pairs & test_pairs:
+        raise ValueError("test positive edges leak into the training graph")
+    if train_supervision_pairs & val_pairs:
+        raise ValueError("validation positive edges leak into training supervision")
+    if train_supervision_pairs & test_pairs:
+        raise ValueError("test positive edges leak into training supervision")
+    if val_pairs & test_pairs:
+        raise ValueError("validation and test positive edges overlap")
 
 
 def create_link_prediction_split(
@@ -102,7 +148,7 @@ def create_link_prediction_split(
         test_data.edge_label,
     )
 
-    return LinkPredictionSplit(
+    split = LinkPredictionSplit(
         dataset_name=graph.name,
         is_undirected=not graph.is_directed,
         seed=seed,
@@ -122,6 +168,8 @@ def create_link_prediction_split(
         val_neg_edge_index=val_neg,
         test_neg_edge_index=test_neg,
     )
+    validate_link_prediction_split(split)
+    return split
 
 
 def save_split_artifact(
@@ -143,4 +191,6 @@ def load_split_artifact(path: str | Path) -> LinkPredictionSplit:
     """Load one persisted split artifact from disk."""
 
     payload = torch.load(Path(path), map_location="cpu")
-    return LinkPredictionSplit(**payload)
+    split = LinkPredictionSplit(**payload)
+    validate_link_prediction_split(split)
+    return split
