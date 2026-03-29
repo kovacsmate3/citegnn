@@ -5,7 +5,15 @@ __pycache__/
 
 data/
 !src/*/data
+
 artifacts/
+!artifacts/
+artifacts/*
+!artifacts/splits/
+artifacts/splits/*
+!artifacts/splits/cora_seed42_lp.pt
+!artifacts/splits/pubmed_seed42_lp.pt
+
 .vscode/
 
 .idea/
