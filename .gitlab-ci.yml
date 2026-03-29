@@ -1,0 +1,29 @@
+stages:
+  - test
+
+variables:
+  UV_VERSION: "0.11.2"
+  PYTHON_VERSION: "3.14"
+  BASE_LAYER: "bookworm-slim"
+  UV_LINK_MODE: copy
+  UV_CACHE_DIR: .uv-cache
+
+default:
+  image: ghcr.io/astral-sh/uv:${UV_VERSION}-python${PYTHON_VERSION}-${BASE_LAYER}
+  cache:
+    - key:
+        files:
+          - pyproject.toml
+          - uv.lock
+      paths:
+        - $UV_CACHE_DIR
+  after_script:
+    - uv cache prune --ci
+
+python_checks:
+  stage: test
+  script:
+    - python --version
+    - uv sync --locked
+    - uv run python -m compileall src scripts
+    - uv run mypy src scripts

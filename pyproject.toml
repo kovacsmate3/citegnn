@@ -14,3 +14,28 @@ dependencies = [
     "torch-geometric>=2.7.0",
     "yfiles-jupyter-graphs>=1.10.10",
 ]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18.2",
+]
+
+[tool.mypy]
+python_version = "3.14"
+ignore_missing_imports = true
+check_untyped_defs = true
+files = ["src", "scripts"]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+torchvision = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
