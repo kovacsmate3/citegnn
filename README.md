@@ -8,6 +8,7 @@ Current scope:
 - task: citation link prediction
 - framework: PyTorch Geometric
 - package manager: `uv`
+- status: data pipeline and shared evaluation utilities implemented
 
 ## Environment
 
@@ -40,7 +41,7 @@ The repository is intentionally configured for CPU by default so CI and local de
 If you have a CUDA-capable machine and want to use CUDA wheels locally, override the PyTorch source in your local checkout before syncing.
 The project already declares both the CPU and CUDA indexes, so you only need to change `tool.uv.sources`.
 
-Current CPU configuration in [pyproject.toml](/var/home/anagy/repos/citegnn/pyproject.toml):
+Current CPU configuration in [pyproject.toml](pyproject.toml):
 
 ```toml
 [tool.uv.sources]
@@ -80,9 +81,11 @@ Notes:
 Current implementation:
 
 - dataset loading through `Planetoid`
+- direct module-level imports for `torch` and `torch_geometric`
 - preserved `train_mask`, `val_mask`, `test_mask`
 - link-prediction split artifact generation
 - smoke-test CLI
+- runtime verified on `Cora` and `PubMed`
 
 Main entrypoint:
 
@@ -91,8 +94,33 @@ python scripts/build_link_prediction_split.py --dataset Cora
 python scripts/build_link_prediction_split.py --dataset PubMed
 ```
 
+Key modules:
+
+- [src/citegnn/data/loaders.py](src/citegnn/data/loaders.py)
+- [src/citegnn/data/splits.py](src/citegnn/data/splits.py)
+- [src/citegnn/data/smoke.py](src/citegnn/data/smoke.py)
+
+Demonstration notebook:
+
+- [notebooks/data_pipeline_demo.ipynb](notebooks/data_pipeline_demo.ipynb)
+
+## Evaluation
+
+Current implementation:
+
+- shared binary link-prediction metrics
+- validation-threshold selection
+- reusable experiment result schema
+- JSON result writing for later aggregation
+
+Main modules:
+
+- [src/citegnn/utils/metrics.py](src/citegnn/utils/metrics.py)
+- [src/citegnn/utils/io.py](src/citegnn/utils/io.py)
+- [src/citegnn/evaluation.py](src/citegnn/evaluation.py)
+
 ## Notes
 
 The split policy for link prediction is still an open protocol decision.
 The current pipeline preserves the original Planetoid node masks and generates link-prediction splits separately.
-Before experiments are finalized, the split strategy should be checked against the papers cited in [proposal/references.bib](/var/home/anagy/repos/citegnn/proposal/references.bib).
+Before experiments are finalized, the split strategy should be checked against the papers cited in [proposal/references.bib](proposal/references.bib).
