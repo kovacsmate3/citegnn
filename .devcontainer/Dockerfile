@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/python:3.14-bookworm
+FROM mcr.microsoft.com/devcontainers/base:ubuntu
 
 ENV UV_INSTALL_DIR="/usr/local/bin" \
     UV_LINK_MODE="copy"
