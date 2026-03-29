@@ -119,6 +119,31 @@ Main modules:
 - [src/citegnn/utils/io.py](src/citegnn/utils/io.py)
 - [src/citegnn/evaluation.py](src/citegnn/evaluation.py)
 
+## Heuristic Baselines
+
+Current implementation:
+
+- heuristic scorers built from the training graph only
+- supported methods:
+  - `common_neighbors`
+  - `adamic_adar`
+  - `personalized_pagerank`
+- shared evaluator and JSON result artifacts reused from the main evaluation layer
+
+Run one baseline from a saved split:
+
+```bash
+python scripts/run_heuristic_baseline.py \
+  --split-path artifacts/splits/cora_seed42_lp.pt \
+  --method common_neighbors
+```
+
+Key modules:
+
+- [src/citegnn/baselines/heuristics.py](src/citegnn/baselines/heuristics.py)
+- [src/citegnn/experiments/heuristic_baselines.py](src/citegnn/experiments/heuristic_baselines.py)
+- [scripts/run_heuristic_baseline.py](scripts/run_heuristic_baseline.py)
+
 ## Notes
 
 The split policy for link prediction is still an open protocol decision.
