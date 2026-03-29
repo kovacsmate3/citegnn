@@ -84,6 +84,7 @@ Current implementation:
 - direct module-level imports for `torch` and `torch_geometric`
 - preserved `train_mask`, `val_mask`, `test_mask`
 - link-prediction split artifact generation
+- default undirected link-prediction protocol with split leakage checks
 - smoke-test CLI
 - runtime verified on `Cora` and `PubMed`
 
@@ -99,6 +100,7 @@ Key modules:
 - [src/citegnn/data/loaders.py](src/citegnn/data/loaders.py)
 - [src/citegnn/data/splits.py](src/citegnn/data/splits.py)
 - [src/citegnn/data/smoke.py](src/citegnn/data/smoke.py)
+- [docs/link_prediction_protocol.md](docs/link_prediction_protocol.md)
 
 Demonstration notebook:
 
