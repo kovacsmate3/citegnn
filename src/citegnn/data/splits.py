@@ -35,6 +35,12 @@ class LinkPredictionSplit:
     val_neg_edge_index: Tensor
     test_neg_edge_index: Tensor
 
+    @property
+    def graph_variant(self) -> str:
+        """Return a stable graph-variant label for artifact naming."""
+
+        return "undirected" if self.is_undirected else "directed"
+
 
 def _edge_pairs(edge_index: Tensor, *, is_undirected: bool) -> set[tuple[int, int]]:
     """Convert an edge index into hashable edge pairs for overlap checks."""
@@ -182,7 +188,10 @@ def save_split_artifact(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    artifact_path = output_path / f"{split.dataset_name.lower()}_seed{split.seed}_lp.pt"
+    artifact_path = (
+        output_path
+        / f"{split.dataset_name.lower()}_{split.graph_variant}_seed{split.seed}_lp.pt"
+    )
     torch.save(asdict(split), artifact_path)
     return artifact_path
 

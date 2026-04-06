@@ -108,6 +108,7 @@ Demonstration notebooks:
 - [notebooks/heuristic_baselines_demo.ipynb](notebooks/heuristic_baselines_demo.ipynb)
 - [notebooks/node2vec_baseline_demo.ipynb](notebooks/node2vec_baseline_demo.ipynb)
 - [notebooks/gnn_baselines_demo.ipynb](notebooks/gnn_baselines_demo.ipynb)
+- [notebooks/baseline_ablation_report.ipynb](notebooks/baseline_ablation_report.ipynb)
 
 ## Evaluation
 
@@ -186,6 +187,12 @@ Run the baselines from a saved split:
 python scripts/run_gnn_baselines.py \
   --split-path artifacts/splits/cora_seed42_lp.pt \
   --method all
+```
+
+Run the shared baseline comparison sweep used by the presentation notebook:
+
+```bash
+python scripts/run_baseline_ablation.py
 ```
 
 Key modules:

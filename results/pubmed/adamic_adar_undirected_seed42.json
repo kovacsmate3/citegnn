@@ -1,0 +1,28 @@
+{
+  "dataset": "PubMed",
+  "method": "adamic_adar",
+  "params": {
+    "is_undirected": true,
+    "split_seed": 42,
+    "train_graph_edges": 62056
+  },
+  "seed": 42,
+  "test": {
+    "average_precision": 0.6123569960306414,
+    "f1": 0.6666666666666666,
+    "positive_rate": 1.0,
+    "precision": 0.5,
+    "recall": 1.0,
+    "roc_auc": 0.6120756638726069,
+    "threshold": 0.0
+  },
+  "validation": {
+    "average_precision": 0.6178803875217425,
+    "f1": 0.6666666666666666,
+    "positive_rate": 1.0,
+    "precision": 0.5,
+    "recall": 1.0,
+    "roc_auc": 0.6177689396284326,
+    "threshold": 0.0
+  }
+}

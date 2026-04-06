@@ -1,0 +1,40 @@
+{
+  "dataset": "Cora",
+  "method": "node2vec",
+  "params": {
+    "batch_size": 512,
+    "classifier_c": 1.0,
+    "context_window": 5,
+    "embedding_dim": 64,
+    "epochs": 3,
+    "is_undirected": true,
+    "learning_rate": 0.025,
+    "negative_samples": 5,
+    "p": 1.0,
+    "q": 1.0,
+    "split_seed": 42,
+    "train_graph_edges": 7392,
+    "train_supervision_edges": 7392,
+    "walk_length": 20,
+    "walks_per_node": 10
+  },
+  "seed": 42,
+  "test": {
+    "average_precision": 0.7183089487973394,
+    "f1": 0.6915460776846916,
+    "positive_rate": 0.7445497630331753,
+    "precision": 0.5779758115849777,
+    "recall": 0.8606635071090047,
+    "roc_auc": 0.7018359875115114,
+    "threshold": 0.17870353472394743
+  },
+  "validation": {
+    "average_precision": 0.6904515186431394,
+    "f1": 0.7027840481565086,
+    "positive_rate": 0.7609108159392789,
+    "precision": 0.5822942643391521,
+    "recall": 0.8861480075901328,
+    "roc_auc": 0.684454990296296,
+    "threshold": 0.17870353472394743
+  }
+}

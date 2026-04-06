@@ -85,5 +85,11 @@ def save_experiment_result(
 ) -> Path:
     """Persist one experiment result as JSON."""
 
-    output_path = Path(output_dir) / result.dataset.lower() / f"{result.method}_seed{result.seed}.json"
+    is_undirected = bool(result.params.get("is_undirected", True))
+    graph_variant = "undirected" if is_undirected else "directed"
+    output_path = (
+        Path(output_dir)
+        / result.dataset.lower()
+        / f"{result.method}_{graph_variant}_seed{result.seed}.json"
+    )
     return write_json(result.to_dict(), output_path)
