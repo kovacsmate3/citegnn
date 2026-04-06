@@ -136,7 +136,7 @@ Current implementation:
 Run one baseline from a saved split:
 
 ```bash
-python scripts/run_heuristic_baseline.py \
+python scripts/run_heuristic_baselines.py \
   --split-path artifacts/splits/cora_seed42_lp.pt \
   --method common_neighbors
 ```
@@ -144,8 +144,28 @@ python scripts/run_heuristic_baseline.py \
 Key modules:
 
 - [src/citegnn/baselines/heuristics.py](src/citegnn/baselines/heuristics.py)
-- [src/citegnn/experiments/heuristic_baselines.py](src/citegnn/experiments/heuristic_baselines.py)
-- [scripts/run_heuristic_baseline.py](scripts/run_heuristic_baseline.py)
+- [scripts/run_heuristic_baselines.py](scripts/run_heuristic_baselines.py)
+
+## Node2Vec Baseline
+
+Current implementation:
+
+- train-only node2vec random walks
+- lightweight PyTorch skip-gram trainer with negative sampling
+- Hadamard edge features from learned node embeddings
+- logistic-regression edge classifier with the shared evaluation layer
+
+Run the baseline from a saved split:
+
+```bash
+python scripts/run_node2vec_baseline.py \
+  --split-path artifacts/splits/cora_seed42_lp.pt
+```
+
+Key modules:
+
+- [src/citegnn/baselines/node2vec.py](src/citegnn/baselines/node2vec.py)
+- [scripts/run_node2vec_baseline.py](scripts/run_node2vec_baseline.py)
 
 ## Notes
 
