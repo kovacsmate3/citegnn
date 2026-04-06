@@ -107,6 +107,7 @@ Demonstration notebooks:
 - [notebooks/data_pipeline_demo.ipynb](notebooks/data_pipeline_demo.ipynb)
 - [notebooks/heuristic_baselines_demo.ipynb](notebooks/heuristic_baselines_demo.ipynb)
 - [notebooks/node2vec_baseline_demo.ipynb](notebooks/node2vec_baseline_demo.ipynb)
+- [notebooks/gnn_baselines_demo.ipynb](notebooks/gnn_baselines_demo.ipynb)
 
 ## Evaluation
 
@@ -167,6 +168,30 @@ Key modules:
 
 - [src/citegnn/baselines/node2vec.py](src/citegnn/baselines/node2vec.py)
 - [scripts/run_node2vec_baseline.py](scripts/run_node2vec_baseline.py)
+
+## GNN Baselines
+
+Current implementation:
+
+- shared full-batch training loop for link prediction
+- supported encoders:
+  - `gcn`
+  - `graphsage`
+- shared Hadamard-product MLP decoder
+- train-graph-only message passing with the shared evaluation layer
+
+Run the baselines from a saved split:
+
+```bash
+python scripts/run_gnn_baselines.py \
+  --split-path artifacts/splits/cora_seed42_lp.pt \
+  --method all
+```
+
+Key modules:
+
+- [src/citegnn/baselines/gnn.py](src/citegnn/baselines/gnn.py)
+- [scripts/run_gnn_baselines.py](scripts/run_gnn_baselines.py)
 
 ## Notes
 
