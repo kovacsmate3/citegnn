@@ -1,0 +1,38 @@
+{
+  "dataset": "PubMed",
+  "method": "graphsage",
+  "params": {
+    "best_epoch": 2,
+    "decoder_hidden_dim": 32,
+    "dropout": 0.2,
+    "epochs": 5,
+    "hidden_dim": 32,
+    "is_undirected": true,
+    "learning_rate": 0.01,
+    "num_layers": 2,
+    "patience": 3,
+    "split_seed": 42,
+    "train_graph_edges": 62056,
+    "train_supervision_edges": 62056,
+    "weight_decay": 0.0005
+  },
+  "seed": 42,
+  "test": {
+    "average_precision": 0.6238542946475836,
+    "f1": 0.6719823821999469,
+    "positive_rate": 0.9856159747292419,
+    "precision": 0.5064385051221885,
+    "recall": 0.998307761732852,
+    "roc_auc": 0.5684616207590187,
+    "threshold": 0.49976491928100586
+  },
+  "validation": {
+    "average_precision": 0.6208897392531405,
+    "f1": 0.6728418495178802,
+    "positive_rate": 0.9858980144404332,
+    "precision": 0.5070374184689324,
+    "recall": 0.9997743682310469,
+    "roc_auc": 0.5667299083869853,
+    "threshold": 0.49976491928100586
+  }
+}
