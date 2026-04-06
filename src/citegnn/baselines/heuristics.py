@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Iterable
+from typing import Any, Iterable
 
 import networkx as nx
 import numpy as np
@@ -166,7 +166,7 @@ def run_heuristic_baseline(
         y_test_true=y_test_true,
         y_test_score=y_test_score,
     )
-    params = {
+    params: dict[str, Any] = {
         "split_seed": int(split.seed),
         "is_undirected": bool(split.is_undirected),
         "train_graph_edges": int(split.train_graph_edge_index.size(1)),
