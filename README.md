@@ -106,6 +106,7 @@ Demonstration notebooks:
 
 - [notebooks/data_pipeline_demo.ipynb](notebooks/data_pipeline_demo.ipynb)
 - [notebooks/heuristic_baselines_demo.ipynb](notebooks/heuristic_baselines_demo.ipynb)
+- [notebooks/node2vec_baseline_demo.ipynb](notebooks/node2vec_baseline_demo.ipynb)
 
 ## Evaluation
 
