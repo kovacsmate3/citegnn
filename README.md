@@ -102,9 +102,10 @@ Key modules:
 - [src/citegnn/data/smoke.py](src/citegnn/data/smoke.py)
 - [docs/link_prediction_protocol.md](docs/link_prediction_protocol.md)
 
-Demonstration notebook:
+Demonstration notebooks:
 
 - [notebooks/data_pipeline_demo.ipynb](notebooks/data_pipeline_demo.ipynb)
+- [notebooks/heuristic_baselines_demo.ipynb](notebooks/heuristic_baselines_demo.ipynb)
 
 ## Evaluation
 
