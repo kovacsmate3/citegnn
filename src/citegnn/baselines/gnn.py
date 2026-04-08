@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+# from copy import deepcopy
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -217,6 +218,7 @@ def run_gnn_baseline(
         weight_decay=resolved_config.weight_decay,
     )
 
+    #best_state = deepcopy(model.state_dict())
     best_validation_metrics: ClassificationMetrics | None = None
     best_test_metrics: ClassificationMetrics | None = None
     best_score = float("-inf")
@@ -255,6 +257,7 @@ def run_gnn_baseline(
 
         if validation_metrics.roc_auc > best_score:
             best_score = validation_metrics.roc_auc
+            #best_state = deepcopy(model.state_dict())
             best_validation_metrics = validation_metrics
             best_test_metrics = test_metrics
             best_epoch = epoch
@@ -264,6 +267,7 @@ def run_gnn_baseline(
             if stale_epochs >= resolved_config.patience:
                 break
 
+    #model.load_state_dict(best_state)
     if best_validation_metrics is None or best_test_metrics is None:
         raise RuntimeError("training did not produce any validation metrics")
 
