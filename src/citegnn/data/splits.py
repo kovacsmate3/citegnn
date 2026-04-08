@@ -11,6 +11,8 @@ from torch_geometric.data import Data
 from torch_geometric.transforms import RandomLinkSplit
 
 from .loaders import GraphData
+from ..utils.seed import seed_everything
+
 
 @dataclass(slots=True)
 class LinkPredictionSplit:
@@ -41,6 +43,20 @@ class LinkPredictionSplit:
 
         return "undirected" if self.is_undirected else "directed"
 
+    @property
+    def train_graph_edge_count(self) -> int:
+        """Return the number of message-passing edges in the training graph."""
+
+        return int(self.train_graph_edge_index.size(1))
+
+    @property
+    def train_supervision_edge_count(self) -> int:
+        """Return the number of labeled training edges used for supervision."""
+
+        return int(
+            self.train_pos_edge_index.size(1) + self.train_neg_edge_index.size(1)
+        )
+
 
 def _edge_pairs(edge_index: Tensor, *, is_undirected: bool) -> set[tuple[int, int]]:
     """Convert an edge index into hashable edge pairs for overlap checks."""
@@ -57,6 +73,8 @@ def _edge_pairs(edge_index: Tensor, *, is_undirected: bool) -> set[tuple[int, in
 
 
 def _validate_ratios(val_ratio: float, test_ratio: float) -> None:
+    """Validate the requested validation and test edge ratios."""
+
     if not 0.0 < val_ratio < 1.0:
         raise ValueError("val_ratio must be in (0, 1)")
     if not 0.0 < test_ratio < 1.0:
@@ -125,6 +143,7 @@ def create_link_prediction_split(
     _validate_ratios(val_ratio=val_ratio, test_ratio=test_ratio)
     if negative_ratio <= 0:
         raise ValueError("negative_ratio must be positive")
+    seed_everything(seed)
 
     base_data = Data(
         x=graph.x,

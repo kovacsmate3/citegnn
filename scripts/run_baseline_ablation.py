@@ -3,22 +3,18 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
-
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
 
 from citegnn.baselines.gnn import GNNBaselineConfig, GNNMethod, run_gnn_baseline
 from citegnn.baselines.heuristics import HeuristicMethod, run_heuristic_baseline
 from citegnn.baselines.node2vec import Node2VecConfig, run_node2vec_baseline
 from citegnn.data.loaders import CitationDataset, load_citation_graph
-from citegnn.data.splits import create_link_prediction_split, save_split_artifact
-from citegnn.evaluation import save_experiment_result
+from citegnn.data.splits import (
+    LinkPredictionSplit,
+    create_link_prediction_split,
+    save_split_artifact,
+)
+from citegnn.evaluation import save_and_describe_experiment_result
 from citegnn.utils.seed import seed_everything
 
 
@@ -96,7 +92,7 @@ def _build_split(
     seed: int,
     data_root: Path,
     split_output_dir: Path,
-):
+) -> LinkPredictionSplit:
     graph = load_citation_graph(
         dataset_name,
         root=data_root,
@@ -105,6 +101,22 @@ def _build_split(
     split = create_link_prediction_split(graph, seed=seed)
     save_split_artifact(split, output_dir=split_output_dir)
     return split
+
+
+def _print_saved_result(
+    result_output_dir: Path,
+    *,
+    result,
+) -> None:
+    """Persist one result and print the shared ablation summary format."""
+
+    _, summary = save_and_describe_experiment_result(
+        result,
+        output_dir=result_output_dir,
+        include_validation_auc=False,
+        include_test_average_precision=True,
+    )
+    print(summary)
 
 
 def main() -> None:
@@ -130,42 +142,21 @@ def main() -> None:
         )
         print(f"\n== {dataset_name} / {split.graph_variant} ==")
 
-        for method in HeuristicMethod:
-            result = run_heuristic_baseline(split, method=method)
-            output_path = save_experiment_result(result, output_dir=args.result_output_dir)
-            print(
-                f"{result.method:<22} "
-                f"test_auc={result.test['roc_auc']:.4f} "
-                f"test_ap={result.test['average_precision']:.4f} "
-                f"-> {output_path}"
-            )
+        for heuristic_method in HeuristicMethod:
+            result = run_heuristic_baseline(split, method=heuristic_method)
+            _print_saved_result(args.result_output_dir, result=result)
 
         node2vec_result = run_node2vec_baseline(split, config=node2vec_config)
-        node2vec_output = save_experiment_result(
-            node2vec_result,
-            output_dir=args.result_output_dir,
-        )
-        print(
-            f"{node2vec_result.method:<22} "
-            f"test_auc={node2vec_result.test['roc_auc']:.4f} "
-            f"test_ap={node2vec_result.test['average_precision']:.4f} "
-            f"-> {node2vec_output}"
-        )
+        _print_saved_result(args.result_output_dir, result=node2vec_result)
 
-        for method in GNNMethod:
+        for gnn_method in GNNMethod:
             result = run_gnn_baseline(
                 split,
-                method=method,
+                method=gnn_method,
                 config=gnn_config,
                 data_root=str(args.data_root),
             )
-            output_path = save_experiment_result(result, output_dir=args.result_output_dir)
-            print(
-                f"{result.method:<22} "
-                f"test_auc={result.test['roc_auc']:.4f} "
-                f"test_ap={result.test['average_precision']:.4f} "
-                f"-> {output_path}"
-            )
+            _print_saved_result(args.result_output_dir, result=result)
 
 
 if __name__ == "__main__":

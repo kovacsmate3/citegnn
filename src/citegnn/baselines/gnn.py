@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -20,6 +20,7 @@ from ..evaluation import (
     build_experiment_result,
     evaluate_with_validation_threshold,
 )
+from ..utils.metrics import ClassificationMetrics
 from ..utils.seed import seed_everything
 
 
@@ -74,31 +75,20 @@ class GNNBaselineConfig:
         }
 
 
-class _GCNEncoder(nn.Module):
-    def __init__(self, in_dim: int, config: GNNBaselineConfig) -> None:
+class _StackedEncoder(nn.Module):
+    """Shared message-passing stack used by the GCN and GraphSAGE baselines."""
+
+    def __init__(
+        self,
+        in_dim: int,
+        config: GNNBaselineConfig,
+        layer_factory: Callable[[int, int], nn.Module],
+    ) -> None:
         super().__init__()
         dims = [in_dim] + [config.hidden_dim] * config.num_layers
         self.layers = nn.ModuleList(
-            GCNConv(dims[index], dims[index + 1]) for index in range(config.num_layers)
-        )
-        self.dropout = float(config.dropout)
-
-    def forward(self, x: Tensor, edge_index: Tensor) -> Tensor:
-        hidden = x
-        for index, layer in enumerate(self.layers):
-            hidden = layer(hidden, edge_index)
-            if index < len(self.layers) - 1:
-                hidden = F.relu(hidden)
-                hidden = F.dropout(hidden, p=self.dropout, training=self.training)
-        return hidden
-
-
-class _GraphSAGEEncoder(nn.Module):
-    def __init__(self, in_dim: int, config: GNNBaselineConfig) -> None:
-        super().__init__()
-        dims = [in_dim] + [config.hidden_dim] * config.num_layers
-        self.layers = nn.ModuleList(
-            SAGEConv(dims[index], dims[index + 1]) for index in range(config.num_layers)
+            layer_factory(dims[index], dims[index + 1])
+            for index in range(config.num_layers)
         )
         self.dropout = float(config.dropout)
 
@@ -161,12 +151,13 @@ def _build_model(
     config: GNNBaselineConfig,
 ) -> _LinkPredictionModel:
     if method == GNNMethod.GCN:
-        encoder: nn.Module = _GCNEncoder(input_dim, config)
+        layer_factory: Callable[[int, int], nn.Module] = GCNConv
     elif method == GNNMethod.GRAPHSAGE:
-        encoder = _GraphSAGEEncoder(input_dim, config)
+        layer_factory = SAGEConv
     else:
         raise ValueError(f"unsupported GNN method: {method}")
 
+    encoder = _StackedEncoder(input_dim, config, layer_factory)
     decoder = _HadamardMLPDecoder(config.hidden_dim, config.decoder_hidden_dim)
     return _LinkPredictionModel(encoder, decoder)
 
@@ -226,9 +217,8 @@ def run_gnn_baseline(
         weight_decay=resolved_config.weight_decay,
     )
 
-    best_state = deepcopy(model.state_dict())
-    best_validation_metrics: dict[str, float] | None = None
-    best_test_metrics: dict[str, float] | None = None
+    best_validation_metrics: ClassificationMetrics | None = None
+    best_test_metrics: ClassificationMetrics | None = None
     best_score = float("-inf")
     best_epoch = 0
     stale_epochs = 0
@@ -265,9 +255,8 @@ def run_gnn_baseline(
 
         if validation_metrics.roc_auc > best_score:
             best_score = validation_metrics.roc_auc
-            best_state = deepcopy(model.state_dict())
-            best_validation_metrics = validation_metrics.to_dict()
-            best_test_metrics = test_metrics.to_dict()
+            best_validation_metrics = validation_metrics
+            best_test_metrics = test_metrics
             best_epoch = epoch
             stale_epochs = 0
         else:
@@ -275,7 +264,6 @@ def run_gnn_baseline(
             if stale_epochs >= resolved_config.patience:
                 break
 
-    model.load_state_dict(best_state)
     if best_validation_metrics is None or best_test_metrics is None:
         raise RuntimeError("training did not produce any validation metrics")
 
@@ -284,19 +272,17 @@ def run_gnn_baseline(
         {
             "split_seed": int(split.seed),
             "is_undirected": bool(split.is_undirected),
-            "train_graph_edges": int(split.train_graph_edge_index.size(1)),
-            "train_supervision_edges": int(
-                split.train_pos_edge_index.size(1) + split.train_neg_edge_index.size(1)
-            ),
+            "train_graph_edges": split.train_graph_edge_count,
+            "train_supervision_edges": split.train_supervision_edge_count,
             "best_epoch": int(best_epoch),
         }
     )
 
-    return ExperimentResult(
+    return build_experiment_result(
         dataset=split.dataset_name,
         method=method.value,
         seed=run_seed,
         params=params,
-        validation=best_validation_metrics,
-        test=best_test_metrics,
+        validation_metrics=best_validation_metrics,
+        test_metrics=best_test_metrics,
     )
