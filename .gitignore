@@ -20,3 +20,12 @@ artifacts/splits/*
 .DS_Store
 *.log
 *.bak
+
+# LaTeX build files
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.toc
+*.synctex.gz
