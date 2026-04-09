@@ -1,11 +1,11 @@
 \documentclass[12pt,a4paper]{article}
 
-% Magyar nyelvi támogatás és karakterkódolás
+% English language support and character encoding
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[magyar]{babel}
+\usepackage[english]{babel}
 
-% Formázási csomagok
+% Formatting packages
 \usepackage{geometry}
 \geometry{a4paper, margin=2.5cm}
 \usepackage{hyperref}
@@ -17,16 +17,16 @@
 \usepackage{multirow}
 \usepackage{amsmath}
 
-% Linkek formázása
+% Link formatting
 \hypersetup{
     colorlinks=true,
     linkcolor=blue,
     filecolor=magenta,      
     urlcolor=cyan,
-    pdftitle={CiteGNN Projekt Jelentés},
+    pdftitle={CiteGNN Project Report},
 }
 
-% Kódblokkok formázása
+% Code block formatting
 \lstset{
     basicstyle=\ttfamily\small,
     backgroundcolor=\color{gray!10},
@@ -37,9 +37,9 @@
     stringstyle=\color{orange}
 }
 
-\title{\textbf{CiteGNN Projekt Jelentés}\\ \Large Kapcsolat-előrejelzés (Link Prediction) hivatkozási hálózatokban}
+\title{\textbf{CiteGNN Project Report}\\ \Large Link Prediction in Citation Networks}
 
-% Szerzők pontos megadása a kért sorrendben
+% Exact order of authors as requested
 \author{
     \Large Baranyi Sándor \\
     \Large Kovács Máté \\
@@ -53,78 +53,78 @@
 \maketitle
 
 \begin{abstract}
-A CiteGNN projekt célja a kapcsolat-előrejelzés (link prediction) problémájának átfogó vizsgálata hivatkozási hálózatokban, fókuszálva a Cora és PubMed adathalmazokra. A kutatás során mind hagyományos gráfelméleti és beágyazás-alapú (Node2Vec), mind pedig modern Gráf Neurális Hálózat (GCN, GraphSAGE) megközelítéseket alkalmazunk. Ez a jelentés részletesen bemutatja az implementált robusztus adatfeldolgozási és kiértékelési csővezetéket, a modellek architektúráját és hiperparamétereit, valamint mélyreható elemzést nyújt a kezdeti kísérleti eredményekről, rávilágítva a sekélyebb (shallow) hálózatok meglepő hatékonyságára és a mély tanulási modellek alultanítási (underfitting) problémáira.
+The goal of the CiteGNN project is a comprehensive investigation of the link prediction problem in citation networks, focusing on the Cora and PubMed datasets. During the research, we apply both traditional graph-theoretic and embedding-based (Node2Vec) approaches, as well as modern Graph Neural Network (GCN, GraphSAGE) models. This report details the implemented robust data processing and evaluation pipeline, the architectures and hyperparameters of the models, and provides an in-depth analysis of the initial experimental results, highlighting the surprising effectiveness of shallow networks and the underfitting problems of deep learning models.
 \end{abstract}
 
 \newpage
 \tableofcontents
 \newpage
 
-\section{Bevezetés}
-A hivatkozási hálózatok (citation networks) elemzése a tudománymetria és a hálózattudomány egyik klasszikus problémája. Ezekben a hálózatokban a csomópontok tudományos publikációkat, az élek pedig a köztük lévő hivatkozásokat reprezentálják. A \textbf{kapcsolat-előrejelzés (link prediction)} feladata annak meghatározása, hogy két, jelenleg éllel nem rendelkező csomópont között mekkora valószínűséggel fog (vagy kellene) kapcsolat létrejönni. Ennek gyakorlati haszna kiemelkedő, például irodalomkutatási ajánlórendszerek (recommender systems) fejlesztésében vagy hiányzó adatok pótlásában.
+\section{Introduction}
+Analyzing citation networks is a classic problem in scientometrics and network science. In these networks, nodes represent scientific publications, and edges represent citations between them. The task of \textbf{link prediction} is to determine the probability that a connection will (or should) exist between two currently unconnected nodes. This has significant practical utility, for example, in developing literature recommender systems or imputing missing data.
 
-A CiteGNN projekt a legmodernebb \texttt{PyTorch Geometric} keretrendszerre épül. Célunk egy olyan reprodukálható és bővíthető kísérleti környezet megalkotása, amely lehetővé teszi a különböző algoritmuscsaládok szigorú, azonos feltételek melletti összehasonlítását. A projekt modern fejlesztési eszközöket használ, beleértve a \texttt{uv} csomagkezelőt. A determinizmus és a könnyű hordozhatóság érdekében a közös konfiguráció alapértelmezetten CPU-ra optimalizált PyTorch tárolókat használ, de dedikált fejlesztői gépeken a CUDA gyorsítás (pl. \texttt{pytorch-cu128}) is támogatott.
+The CiteGNN project is built on the state-of-the-art \texttt{PyTorch Geometric} framework. Our goal is to create a reproducible and extensible experimental environment that allows for rigorous, fair comparison of different algorithm families under identical conditions. The project utilizes modern development tools, including the \texttt{uv} package manager. For determinism and high portability, the shared configuration defaults to CPU-optimized PyTorch containers, but CUDA acceleration (e.g., \texttt{pytorch-cu128}) is also supported on dedicated developer machines.
 
-\section{Adatfeldolgozás és Értékelési Keretrendszer}
+\section{Data Pipeline and Evaluation Framework}
 
-\subsection{Adathalmazok és Felosztási Protokoll (Data Pipeline)}
-A kiindulási adatok (\textbf{Cora} és \textbf{PubMed}) betöltése a szabványos \texttt{Planetoid} interfészen keresztül történik. A kapcsolat-előrejelzési feladat egyik legnagyobb kihívása a megfelelő adatfelosztás (split generation) anélkül, hogy adatszivárgás (data leakage) lépne fel. 
+\subsection{Datasets and Split Protocol}
+The initial data (\textbf{Cora} and \textbf{PubMed}) is loaded via the standard \texttt{Planetoid} interface. One of the biggest challenges in the link prediction task is generating proper data splits without causing data leakage. 
 
-A projekt a \texttt{build\_link\_prediction\_split.py} szkript segítségével egy determinisztikus (seed=42) felosztást generál. A folyamat sajátosságai:
+The project uses the \texttt{build\_link\_prediction\_split.py} script to generate a deterministic (seed=42) split. Characteristics of the process:
 \begin{itemize}
-    \item \textbf{Csomóponti maszkok megőrzése:} A generátor tiszteletben tartja az eredeti \texttt{train\_mask}, \texttt{val\_mask} és \texttt{test\_mask} értékeket, biztosítva a kompatibilitást a szakirodalommal.
-    \item \textbf{Tanító gráf (Message Passing Graph):} A betanítás során az algoritmusok (legyen szó random sétákról vagy GNN üzenetküldésről) csak a tanító gráf éleit láthatják.
-    \item \textbf{Negatív mintavételezés:} A kiértékeléshez a meglévő (pozitív) élek mellé a hálózatból véletlenszerűen generált, nem létező (negatív) éleket is rendelünk, kiegyensúlyozva a predikciós feladatot.
-    \item \textbf{Artifakt-alapú mentés:} A felosztások \texttt{.pt} formátumban az \texttt{artifacts/splits/} mappába kerülnek. Ezzel garantáljuk, hogy minden baseline módszer hajszálpontosan ugyanazon a topológián kerül kiértékelésre.
+    \item \textbf{Preserving node masks:} The generator respects the original \texttt{train\_mask}, \texttt{val\_mask}, and \texttt{test\_mask} values, ensuring compatibility with the literature.
+    \item \textbf{Message Passing Graph:} During training, algorithms (whether random walks or GNN message passing) are only allowed to see the edges of the training graph.
+    \item \textbf{Negative sampling:} For evaluation, alongside existing (positive) edges, randomly generated, non-existent (negative) edges from the network are assigned to balance the prediction task.
+    \item \textbf{Artifact-based saving:} The splits are saved in \texttt{.pt} format into the \texttt{artifacts/splits/} directory. This guarantees that every baseline method is evaluated on exactly the same topology.
 \end{itemize}
 
-\subsection{Közös Értékelési Réteg}
-A tisztességes összehasonlítás (fair benchmarking) érdekében egy közös értékelési modult (\texttt{src/citegnn/evaluation.py}) fejlesztettünk ki. 
-A keretrendszer az alábbi metrikákat számítja ki az élek valószínűségi pontszámai (scores) alapján:
+\subsection{Shared Evaluation Layer}
+To ensure fair benchmarking, we developed a shared evaluation module (\texttt{src/citegnn/evaluation.py}). 
+The framework calculates the following metrics based on the probability scores of the edges:
 \begin{itemize}
     \item \textbf{ROC-AUC} (Receiver Operating Characteristic - Area Under Curve)
     \item \textbf{AP} (Average Precision)
-    \item \textbf{F1-score} (A validációs halmazon optimalizált bináris küszöbérték - threshold - alapján)
+    \item \textbf{F1-score} (Based on a binary threshold optimized on the validation set)
 \end{itemize}
-Az eredmények automatikusan szabványosított JSON fájlokba kerülnek a későbbi aggregációhoz.
+The results are automatically saved into standardized JSON files for later aggregation.
 
-\section{Alkalmazott Módszerek és Kísérleti Beállítások}
+\section{Applied Methods and Experimental Setup}
 
-\subsection{Heurisztikus Baseline Módszerek}
-A legkézenfekvőbb megközelítések tisztán a gráf topológiájára támaszkodnak, paramétertanulás nélkül. A repozitórium három ilyet implementál:
+\subsection{Heuristic Baselines}
+The most straightforward approaches rely purely on graph topology without parameter learning. The repository implements three of these:
 \begin{enumerate}
-    \item \textbf{Common Neighbors (Közös szomszédok):} Két csomópont közötti kapcsolat valószínűségét a közös ismerősök száma adja meg.
-    \item \textbf{Adamic-Adar index:} Hasonló a közös szomszédokhoz, de bünteti a túl magas fokszámú (hub) közös szomszédokat, ezáltal finomabb metrikát adva.
-    \item \textbf{Personalized PageRank (PPR):} Véletlen bolyongáson alapuló metrika, amely egy adott csomópontból indulva méri a többi csomópont elérhetőségét. (Alapértelmezett teleportációs valószínűség: $\alpha=0.85$).
+    \item \textbf{Common Neighbors:} The probability of a connection between two nodes is given by the number of their common acquaintances.
+    \item \textbf{Adamic-Adar index:} Similar to common neighbors, but penalizes high-degree (hub) common neighbors, thus providing a more refined metric.
+    \item \textbf{Personalized PageRank (PPR):} A random walk-based metric that measures the reachability of other nodes starting from a specific node. (Default teleport probability: $\alpha=0.85$).
 \end{enumerate}
 
-\subsection{Node2Vec: Csomópont-beágyazás}
-A sekély (shallow) hálózati megközelítések képviselője a Node2Vec, amely a gráfstruktúrából generál sűrű, alacsony dimenziós vektorokat.
+\subsection{Node2Vec: Node Embedding}
+Representing shallow network approaches is Node2Vec, which generates dense, low-dimensional vectors from the graph structure.
 \begin{itemize}
-    \item \textbf{Működési elv:} Az algoritmus torzított véletlen sétákat (biased random walks) generál a tanító gráfon, majd ezeket a "mondatokat" egy Word2Vec-hez hasonló Skip-Gram modellel dolgozza fel.
-    \item \textbf{Hiperparaméterek:} \texttt{embedding\_dim=16}, \texttt{walk\_length=10}, \texttt{walks\_per\_node=2}, \texttt{context\_window=5}, \texttt{negative\_samples=5}. Tanulási ráta: 0.025, Batch size: 256, Epochok száma: 1.
-    \item \textbf{Él-predikció:} A csomópontok vektorainak Hadamard-szorzatát képezzük, majd erre egy L2-regularizált logisztikus regressziót (C=1.0) illesztünk.
+    \item \textbf{Operating principle:} The algorithm generates biased random walks on the training graph, then processes these "sentences" with a Word2Vec-like Skip-Gram model.
+    \item \textbf{Hyperparameters:} \texttt{embedding\_dim=16}, \texttt{walk\_length=10}, \texttt{walks\_per\_node=2}, \texttt{context\_window=5}, \texttt{negative\_samples=5}. Learning rate: 0.025, Batch size: 256, Epochs: 1.
+    \item \textbf{Link prediction:} The Hadamard product of the node vectors is computed, and an L2-regularized logistic regression (C=1.0) is fitted on this.
 \end{itemize}
 
-\subsection{Gráf Neurális Hálózatok (GNN)}
-A végponttól-végpontig (end-to-end) tanítható mélytanulási modellek esetében két kódolót (encoder) vizsgáltunk, melyek mindegyike egy Hadamard-szorzatra épülő kétrétegű MLP dekódolót használ a predikcióhoz.
+\subsection{Graph Neural Networks (GNN)}
+For end-to-end trainable deep learning models, we investigated two encoders, both of which use a two-layer MLP decoder based on the Hadamard product for prediction.
 \begin{itemize}
-    \item \textbf{GCN (Graph Convolutional Network):} A spektrális gráfelméletből származtatott konvolúció, amely a szomszédok jellemzőinek normalizált átlagolását végzi.
-    \item \textbf{GraphSAGE:} Térbeli (spatial) megközelítés, amely a saját reprezentációt és a szomszédoktól aggregált üzeneteket egyaránt felhasználja.
-    \item \textbf{Közös hiperparaméterek:} Rejtett dimenzió (és dekódoló dimenzió): 32. GNN rétegek száma: 2. Dropout: 0.2. Tanulási ráta: 0.01. Súlycsökkenés (Weight decay): $5 \times 10^{-4}$.
-    \item \textbf{Tanítási ciklusok:} \textbf{Epoch=5}, Patience (korai leállítás)=3.
+    \item \textbf{GCN (Graph Convolutional Network):} A convolution derived from spectral graph theory that performs normalized averaging of neighbor features.
+    \item \textbf{GraphSAGE:} A spatial approach that utilizes both its own representation and messages aggregated from neighbors.
+    \item \textbf{Shared hyperparameters:} Hidden dimension (and decoder dimension): 32. Number of GNN layers: 2. Dropout: 0.2. Learning rate: 0.01. Weight decay: $5 \times 10^{-4}$.
+    \item \textbf{Training cycles:} \textbf{Epoch=5}, Patience (early stopping)=3.
 \end{itemize}
 
-\section{Kísérleti Eredmények és Elemzés}
-A futtatások során rögzítésre kerültek a validációs és tesztelési metrikák a fix, 42-es véletlenszám-generátor mag (seed) alkalmazásával. A kinyert teljesítmény-metrikákat az 1. táblázat foglalja össze.
+\section{Experimental Results and Analysis}
+During the runs, validation and test metrics were recorded using a fixed random seed (seed=42). The extracted performance metrics are summarized in Table 1.
 
 \begin{table}[h]
 \centering
-\caption{Kapcsolat-előrejelzési eredmények a Cora és PubMed hálózatokon (Seed: 42)}
+\caption{Link prediction results on the Cora and PubMed networks (Seed: 42)}
 \vspace{0.2cm}
 \begin{tabular}{@{}llcccc@{}}
 \toprule
-\textbf{Adathalmaz} & \textbf{Modell} & \textbf{Val. ROC-AUC} & \textbf{Test ROC-AUC} & \textbf{Test AP} & \textbf{Test F1} \\ \midrule
+\textbf{Dataset} & \textbf{Model} & \textbf{Val. ROC-AUC} & \textbf{Test ROC-AUC} & \textbf{Test AP} & \textbf{Test F1} \\ \midrule
 \multirow{3}{*}{\textbf{Cora}} 
  & Node2Vec & \textbf{0.7350} & \textbf{0.7328} & \textbf{0.7704} & \textbf{0.6921} \\
  & GCN & 0.6787 & 0.6751 & 0.7004 & 0.6669 \\
@@ -136,29 +136,29 @@ A futtatások során rögzítésre kerültek a validációs és tesztelési metr
 \end{tabular}
 \end{table}
 
-\subsection{Eredmények kiértékelése és Anomáliák}
+\subsection{Evaluation of Results and Anomalies}
 
-A fenti adatok alapos vizsgálata rávilágít a jelenlegi prototípus fázis jellegzetességeire és a modellek viselkedésére.
+A thorough examination of the above data highlights the characteristics of the current prototype phase and the behavior of the models.
 
-\textbf{1. A Node2Vec meglepő robusztussága (Cora):}
-A kisebb kiterjedésű Cora hálózaton jelenleg a topológia-vezérelt Node2Vec teljesít a legjobban (0.7328 AUC). Különösen figyelemre méltó, hogy ezt az eredményt mindössze 1 epoch tanítás és apró (16 dimenziós) beágyazások mellett érte el. Ez azt mutatja, hogy a Cora hálózatban a szomszédsági viszonyok (homofília) rendkívül erős indikátorai az élek meglétének.
+\textbf{1. The surprising robustness of Node2Vec (Cora):}
+On the smaller Cora network, the topology-driven Node2Vec currently performs the best (0.7328 AUC). It is particularly remarkable that it achieved this result with only 1 epoch of training and tiny (16-dimensional) embeddings. This shows that in the Cora network, neighborhood relations (homophily) are extremely strong indicators of the existence of edges.
 
-\textbf{2. A GCN potenciálja a nagyobb adatokon (PubMed):}
-A PubMed jóval nagyobb és komplexebb adathalmaz. Itt a GCN kiemelkedő eredményt produkált (0.8678 AUC). A csomópontokhoz tartozó gazdag szöveges (TF-IDF) jellemzők aggregálása a GCN által képes volt ellensúlyozni a gráf ritkaságát, bizonyítva a modell erejét a gazdag attribútumokkal rendelkező hálózatokon.
+\textbf{2. The potential of GCN on larger data (PubMed):}
+PubMed is a much larger and more complex dataset. Here, the GCN produced an outstanding result (0.8678 AUC). The aggregation of rich textual (TF-IDF) features associated with the nodes by the GCN was able to offset the sparsity of the graph, proving the power of the model on networks with rich attributes.
 
-\textbf{3. A GraphSAGE alultanítási (Underfitting) problémája:}
-A legszembetűnőbb anomália a GraphSAGE rendkívül gyenge, szinte véletlenszerű (0.52 - 0.56 AUC) teljesítménye mindkét adathalmazon. Ennek oka egyértelműen a kísérleti beállításokban (hyperparameters) keresendő: a demó szkriptekben az \texttt{epochs = 5} érték került beállításra. Egy olyan komplex, sok paraméterrel rendelkező aggregátor, mint a GraphSAGE (pláne kiegészítve az MLP dekódolóval), fizikailag képtelen konvergálni 5 ciklus alatt. A modell jelenlegi állapotában erősen alultanított (underfitted). A GCN feltehetően a "simító" (smoothing) jellegéből adódóan képes volt néhány lépés alatt is elsajátítani az alapvető mintázatokat, de hosszabb tanítás nélkül annak teljesítménye is korlátozott marad.
+\textbf{3. The Underfitting problem of GraphSAGE:}
+The most striking anomaly is the extremely poor, almost random (0.52 - 0.56 AUC) performance of GraphSAGE on both datasets. The reason for this is clearly to be found in the experimental setup (hyperparameters): the demo scripts set \texttt{epochs = 5}. An aggregator as complex and parameterized as GraphSAGE (especially combined with an MLP decoder) is physically incapable of converging in 5 cycles. In its current state, the model is severely underfitted. The GCN was presumably able to learn the basic patterns even in a few steps due to its "smoothing" nature, but without longer training, its performance will also remain limited.
 
-\section{Következtetések és Jövőbeli Feladatok}
+\section{Conclusions and Future Work}
 
-A CiteGNN projekt alapozó szakasza sikeresen lezárult. Kialakítottunk egy moduláris, szivárgásmentes adatfeldolgozó rendszert, és integráltuk a legfontosabb baseline modelleket a heurisztikáktól a mélytanulásig. Az eddigi eredmények validálják a csővezeték (pipeline) működését, ugyanakkor kijelölik a következő fejlesztési fázis irányait.
+The foundational phase of the CiteGNN project has been successfully completed. We have established a modular, leak-free data processing system and integrated the most important baseline models, from heuristics to deep learning. The results so far validate the operation of the pipeline while also designating the directions for the next development phase.
 
-\textbf{A projekt folytatásához szükséges legfontosabb lépések:}
+\textbf{Key steps required to continue the project:}
 \begin{enumerate}
-    \item \textbf{Hiperparaméter-optimalizáció (Kritikus):} A GNN modellek 5 epochos korlátját azonnal fel kell oldani. A szakirodalom alapján minimum 100-200 epochos tanítás, valamint a tanulási ráta és a rejtett rétegek dimenziójának (Grid Search vagy Bayes-i) optimalizálása szükséges a modellek valós tudásának felméréséhez.
-    \item \textbf{Hiányzó kísérletek pótlása:} A teljes körű összehasonlításhoz el kell végezni a Node2Vec és a heurisztikus algoritmusok futtatását a PubMed adathalmazon is.
-    \item \textbf{Robusztusság vizsgálata:} A jelenlegi eredmények egyetlen véletlenszám-magon (seed=42) alapulnak. A statisztikai szignifikancia bizonyításához érdemes több (pl. 3 vagy 5) különböző seed-del generált felosztáson átlagolt eredményeket és szórásokat publikálni a végső tanulmányban.
-    \item \textbf{Protokoll-ellenőrzés:} A repozitórium feljegyzéseivel összhangban érdemes a Planetoid-specifikus maszk-kezelést összevetni a hivatkozott cikkek módszertanával a publikálás előtt.
+    \item \textbf{Hyperparameter optimization (Critical):} The 5-epoch limit for GNN models must be lifted immediately. Based on the literature, a minimum of 100-200 training epochs, as well as the optimization of the learning rate and hidden layer dimensions (via Grid Search or Bayesian optimization), are required to assess the true capabilities of the models.
+    \item \textbf{Completing missing experiments:} For a comprehensive comparison, Node2Vec and heuristic algorithms must also be run on the PubMed dataset.
+    \item \textbf{Robustness testing:} The current results are based on a single random seed (seed=42). To prove statistical significance, it is advisable to publish results and standard deviations averaged over splits generated with multiple (e.g., 3 or 5) different seeds in the final study.
+    \item \textbf{Protocol verification:} Consistent with the notes in the repository, it is worthwhile to compare the Planetoid-specific mask handling with the methodology of the cited papers before publication.
 \end{enumerate}
 
 \end{document}
