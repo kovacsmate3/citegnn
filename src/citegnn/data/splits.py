@@ -98,6 +98,12 @@ def _split_labeled_edges(
     return pos_edges.contiguous(), neg_edges.contiguous()
 
 
+def _artifact_graph_variant_suffix(*, is_undirected: bool) -> str:
+    """Return the suffix needed only for non-default graph variants."""
+
+    return "" if is_undirected else "_directed"
+
+
 def validate_link_prediction_split(split: LinkPredictionSplit) -> None:
     """Check that held-out positives do not leak into the training graph."""
 
@@ -207,9 +213,10 @@ def save_split_artifact(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
+    variant_suffix = _artifact_graph_variant_suffix(is_undirected=split.is_undirected)
     artifact_path = (
         output_path
-        / f"{split.dataset_name.lower()}_{split.graph_variant}_seed{split.seed}_lp.pt"
+        / f"{split.dataset_name.lower()}{variant_suffix}_seed{split.seed}_lp.pt"
     )
     torch.save(asdict(split), artifact_path)
     return artifact_path

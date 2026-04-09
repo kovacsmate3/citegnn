@@ -86,8 +86,11 @@ class BaselineScriptIntegrationTests(unittest.TestCase):
             side_effect=build_result,
         ) as run_mock, patch.object(
             module,
-            "save_experiment_result",
-            side_effect=lambda result, output_dir: output_dir / f"{result.method}.json",
+            "save_and_describe_experiment_result",
+            side_effect=lambda result, output_dir: (
+                output_dir / f"{result.method}.json",
+                f"{result.method} -> {output_dir / f'{result.method}.json'}",
+            ),
         ), redirect_stdout(stdout):
             module.main()
 
@@ -128,8 +131,11 @@ class BaselineScriptIntegrationTests(unittest.TestCase):
             return_value=make_experiment_result("node2vec"),
         ) as run_mock, patch.object(
             module,
-            "save_experiment_result",
-            return_value=Path("results/cora/node2vec_seed42.json"),
+            "save_and_describe_experiment_result",
+            return_value=(
+                Path("results/cora/node2vec_seed42.json"),
+                "node2vec -> results/cora/node2vec_seed42.json",
+            ),
         ), redirect_stdout(stdout):
             module.main()
 
@@ -175,8 +181,11 @@ class BaselineScriptIntegrationTests(unittest.TestCase):
             side_effect=build_result,
         ) as run_mock, patch.object(
             module,
-            "save_experiment_result",
-            side_effect=lambda result, output_dir: output_dir / f"{result.method}.json",
+            "save_and_describe_experiment_result",
+            side_effect=lambda result, output_dir: (
+                output_dir / f"{result.method}.json",
+                f"{result.method} -> {output_dir / f'{result.method}.json'}",
+            ),
         ), redirect_stdout(stdout):
             module.main()
 

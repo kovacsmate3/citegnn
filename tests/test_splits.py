@@ -80,6 +80,14 @@ class SplitArtifactTests(unittest.TestCase):
         self.assertTrue(torch.equal(loaded.train_graph_edge_index, split.train_graph_edge_index))
         self.assertTrue(torch.equal(loaded.test_neg_edge_index, split.test_neg_edge_index))
 
+    def test_save_split_artifact_adds_directed_suffix_for_non_default_graph_variant(self) -> None:
+        split = make_link_prediction_split(is_undirected=False)
+
+        with workspace_temp_dir("splits-directed") as tmp_dir:
+            artifact_path = save_split_artifact(split, output_dir=tmp_dir)
+
+        self.assertEqual(artifact_path.name, "cora_directed_seed42_lp.pt")
+
     def test_validate_link_prediction_split_rejects_leakage(self) -> None:
         split = make_link_prediction_split()
         split.val_pos_edge_index = torch.tensor([[0], [1]], dtype=torch.long)
