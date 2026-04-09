@@ -1,3 +1,6 @@
+**[Read the detailed Project Report (PDF)](report/citegnn-report.pdf)**
+
+
 # CiteGNN
 
 Link prediction in citation networks using classical graph methods and graph neural networks.
