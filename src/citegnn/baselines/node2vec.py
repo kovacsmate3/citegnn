@@ -351,8 +351,8 @@ def run_node2vec_baseline(
         {
             "split_seed": int(split.seed),
             "is_undirected": bool(split.is_undirected),
-            "train_graph_edges": int(split.train_graph_edge_index.size(1)),
-            "train_supervision_edges": int(split.train_pos_edge_index.size(1) + split.train_neg_edge_index.size(1)),
+            "train_graph_edges": split.train_graph_edge_count,
+            "train_supervision_edges": split.train_supervision_edge_count,
         }
     )
 

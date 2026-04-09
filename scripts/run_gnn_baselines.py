@@ -3,19 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
-
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
 
 from citegnn.baselines.gnn import GNNBaselineConfig, GNNMethod, run_gnn_baseline
 from citegnn.data.splits import load_split_artifact
-from citegnn.evaluation import save_experiment_result
+from citegnn.evaluation import save_and_describe_experiment_result
 
 
 def parse_args() -> argparse.Namespace:
@@ -66,13 +58,11 @@ def main() -> None:
             config=config,
             data_root=args.data_root,
         )
-        output_path = save_experiment_result(result, output_dir=args.output_dir)
-        print(
-            f"{result.dataset} {result.method}: "
-            f"val_auc={result.validation['roc_auc']:.4f} "
-            f"test_auc={result.test['roc_auc']:.4f} "
-            f"-> {output_path}"
+        _, summary = save_and_describe_experiment_result(
+            result,
+            output_dir=args.output_dir,
         )
+        print(summary)
 
 
 if __name__ == "__main__":

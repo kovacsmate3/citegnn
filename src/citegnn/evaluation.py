@@ -34,6 +34,23 @@ class ExperimentResult:
         return asdict(self)
 
 
+def describe_experiment_result(
+    result: ExperimentResult,
+    *,
+    include_validation_auc: bool = True,
+    include_test_average_precision: bool = False,
+) -> str:
+    """Build a compact CLI summary line for one experiment result."""
+
+    metrics: list[str] = []
+    if include_validation_auc:
+        metrics.append(f"val_auc={result.validation['roc_auc']:.4f}")
+    metrics.append(f"test_auc={result.test['roc_auc']:.4f}")
+    if include_test_average_precision:
+        metrics.append(f"test_ap={result.test['average_precision']:.4f}")
+    return f"{result.dataset} {result.method}: {' '.join(metrics)}"
+
+
 def evaluate_with_validation_threshold(
     *,
     y_val_true: list[int] | Tensor | np.ndarray,
@@ -85,5 +102,29 @@ def save_experiment_result(
 ) -> Path:
     """Persist one experiment result as JSON."""
 
-    output_path = Path(output_dir) / result.dataset.lower() / f"{result.method}_seed{result.seed}.json"
+    is_undirected = bool(result.params.get("is_undirected", True))
+    graph_variant = "undirected" if is_undirected else "directed"
+    output_path = (
+        Path(output_dir)
+        / result.dataset.lower()
+        / f"{result.method}_{graph_variant}_seed{result.seed}.json"
+    )
     return write_json(result.to_dict(), output_path)
+
+
+def save_and_describe_experiment_result(
+    result: ExperimentResult,
+    *,
+    output_dir: str | Path = "results",
+    include_validation_auc: bool = True,
+    include_test_average_precision: bool = False,
+) -> tuple[Path, str]:
+    """Persist one result and return the matching CLI summary line."""
+
+    output_path = save_experiment_result(result, output_dir=output_dir)
+    summary = describe_experiment_result(
+        result,
+        include_validation_auc=include_validation_auc,
+        include_test_average_precision=include_test_average_precision,
+    )
+    return output_path, f"{summary} -> {output_path}"

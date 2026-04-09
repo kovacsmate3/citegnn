@@ -169,7 +169,7 @@ def run_heuristic_baseline(
     params: dict[str, Any] = {
         "split_seed": int(split.seed),
         "is_undirected": bool(split.is_undirected),
-        "train_graph_edges": int(split.train_graph_edge_index.size(1)),
+        "train_graph_edges": split.train_graph_edge_count,
     }
     if method == HeuristicMethod.PERSONALIZED_PAGERANK:
         params["alpha"] = float(ppr_alpha)

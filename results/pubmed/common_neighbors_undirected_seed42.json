@@ -1,0 +1,28 @@
+{
+  "dataset": "PubMed",
+  "method": "common_neighbors",
+  "params": {
+    "is_undirected": true,
+    "split_seed": 42,
+    "train_graph_edges": 62056
+  },
+  "seed": 42,
+  "test": {
+    "average_precision": 0.6117967585692996,
+    "f1": 0.6666666666666666,
+    "positive_rate": 1.0,
+    "precision": 0.5,
+    "recall": 1.0,
+    "roc_auc": 0.6120385443411227,
+    "threshold": 0.0
+  },
+  "validation": {
+    "average_precision": 0.6172935245804011,
+    "f1": 0.6666666666666666,
+    "positive_rate": 1.0,
+    "precision": 0.5,
+    "recall": 1.0,
+    "roc_auc": 0.6177340919420949,
+    "threshold": 0.0
+  }
+}
