@@ -27,3 +27,10 @@ python_checks:
     - uv sync --locked
     - uv run python -m compileall src scripts
     - uv run mypy src scripts
+
+python_tests:
+  stage: test
+  script:
+    - python --version
+    - uv sync --locked
+    - PYTHONPATH=src uv run python -m unittest discover -s tests -v

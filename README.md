@@ -112,6 +112,7 @@ Demonstration notebooks:
 - [notebooks/node2vec_baseline_demo.ipynb](notebooks/node2vec_baseline_demo.ipynb)
 - [notebooks/gnn_baselines_demo.ipynb](notebooks/gnn_baselines_demo.ipynb)
 - [notebooks/baseline_ablation_report.ipynb](notebooks/baseline_ablation_report.ipynb)
+- [notebooks/results_diagnostics_dashboard.ipynb](notebooks/results_diagnostics_dashboard.ipynb)
 
 ## Evaluation
 
