@@ -17,7 +17,6 @@ dependencies = [
     "torch>=2.10.0",
     "torch-geometric>=2.7.0",
     "yfiles-jupyter-graphs>=1.10.10",
-    "matplotlib",
 ]
 
 [dependency-groups]
