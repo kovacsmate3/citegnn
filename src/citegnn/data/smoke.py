@@ -24,6 +24,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--val-ratio", type=float, default=0.1, help="Validation edge ratio.")
     parser.add_argument("--test-ratio", type=float, default=0.2, help="Test edge ratio.")
     parser.add_argument(
+        "--negative-ratio",
+        type=float,
+        default=1.0,
+        help="Negative-to-positive sampling ratio for each supervision split.",
+    )
+    parser.add_argument(
         "--directed",
         action="store_true",
         help="Keep the citation graph directed instead of converting it to undirected.",
@@ -48,6 +54,7 @@ def main() -> None:
         graph,
         val_ratio=args.val_ratio,
         test_ratio=args.test_ratio,
+        negative_ratio=args.negative_ratio,
         seed=args.seed,
     )
     artifact_path = save_split_artifact(split, output_dir=args.output_dir)
