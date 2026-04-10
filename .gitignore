@@ -20,6 +20,9 @@ artifacts/splits/*
 .DS_Store
 *.log
 *.bak
+.coverage
+.coverage.*
+htmlcov/
 
 # LaTeX build files
 *.aux

@@ -18,10 +18,23 @@ from tests.support import make_graph_data, make_link_prediction_split, workspace
 
 
 class SplitHelperTests(unittest.TestCase):
+    def test_split_properties_report_graph_variant_and_edge_counts(self) -> None:
+        undirected_split = make_link_prediction_split(is_undirected=True)
+        directed_split = make_link_prediction_split(is_undirected=False)
+
+        self.assertEqual(undirected_split.graph_variant, "undirected")
+        self.assertEqual(directed_split.graph_variant, "directed")
+        self.assertEqual(undirected_split.train_graph_edge_count, 10)
+        self.assertEqual(undirected_split.train_supervision_edge_count, 8)
+
     def test_edge_pairs_canonicalizes_undirected_duplicates(self) -> None:
         edge_index = torch.tensor([[2, 1], [1, 2]], dtype=torch.long)
         pairs = _edge_pairs(edge_index, is_undirected=True)
         self.assertEqual(pairs, {(1, 2)})
+
+    def test_edge_pairs_rejects_invalid_shape(self) -> None:
+        with self.assertRaisesRegex(ValueError, "shape \\[2, num_edges\\]"):
+            _edge_pairs(torch.tensor([0, 1], dtype=torch.long), is_undirected=True)
 
     def test_validate_ratios_rejects_invalid_ranges(self) -> None:
         with self.assertRaisesRegex(ValueError, "val_ratio must be in"):
@@ -39,8 +52,18 @@ class SplitHelperTests(unittest.TestCase):
         self.assertTrue(torch.equal(pos_edges, torch.tensor([[0, 2], [1, 3]], dtype=torch.long)))
         self.assertTrue(torch.equal(neg_edges, torch.tensor([[1], [2]], dtype=torch.long)))
 
+    def test_split_labeled_edges_rejects_invalid_shape(self) -> None:
+        with self.assertRaisesRegex(ValueError, "shape \\[2, num_edges\\]"):
+            _split_labeled_edges(torch.tensor([0, 1], dtype=torch.long), torch.tensor([1, 0]))
+
 
 class SplitArtifactTests(unittest.TestCase):
+    def test_create_link_prediction_split_rejects_non_positive_negative_ratio(self) -> None:
+        graph = make_graph_data(is_directed=False)
+
+        with self.assertRaisesRegex(ValueError, "negative_ratio must be positive"):
+            create_link_prediction_split(graph, negative_ratio=0.0)
+
     def test_create_link_prediction_split_is_reproducible_with_global_seed(self) -> None:
         graph = make_graph_data(is_directed=False)
 
@@ -93,6 +116,13 @@ class SplitArtifactTests(unittest.TestCase):
         split.val_pos_edge_index = torch.tensor([[0], [1]], dtype=torch.long)
 
         with self.assertRaisesRegex(ValueError, "leak into the training graph"):
+            validate_link_prediction_split(split)
+
+    def test_validate_link_prediction_split_rejects_validation_test_overlap(self) -> None:
+        split = make_link_prediction_split()
+        split.test_pos_edge_index = split.val_pos_edge_index.clone()
+
+        with self.assertRaisesRegex(ValueError, "validation and test positive edges overlap"):
             validate_link_prediction_split(split)
 
 

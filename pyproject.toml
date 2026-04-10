@@ -21,6 +21,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "coverage[toml]>=7.11.0",
     "mypy>=1.18.2",
 ]
 
@@ -35,6 +36,19 @@ python_version = "3.14"
 ignore_missing_imports = true
 check_untyped_defs = true
 files = ["src", "scripts"]
+
+[tool.coverage.run]
+branch = true
+relative_files = true
+source = ["citegnn"]
+
+[tool.coverage.report]
+fail_under = 75
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "if __name__ == .__main__.:",
+]
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cpu" }]

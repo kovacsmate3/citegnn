@@ -35,6 +35,8 @@ Run the current checks:
 ```bash
 uv run python -m compileall src scripts
 uv run mypy src scripts
+PYTHONPATH=src uv run coverage run -m unittest discover -s tests -v
+uv run coverage report
 ```
 
 ## CUDA Override

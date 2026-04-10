@@ -5,7 +5,9 @@ from pathlib import Path
 import unittest
 
 from citegnn.evaluation import (
+    ExperimentResult,
     build_experiment_result,
+    describe_experiment_result,
     evaluate_with_validation_threshold,
     save_and_describe_experiment_result,
     save_experiment_result,
@@ -15,6 +17,28 @@ from tests.support import make_metrics, workspace_temp_dir
 
 
 class EvaluationTests(unittest.TestCase):
+    def test_experiment_result_to_dict_preserves_nested_metrics(self) -> None:
+        result = ExperimentResult(
+            dataset="Cora",
+            method="gcn",
+            seed=11,
+            params={"layers": 2},
+            validation={"roc_auc": 0.81},
+            test={"roc_auc": 0.79},
+        )
+
+        self.assertEqual(
+            result.to_dict(),
+            {
+                "dataset": "Cora",
+                "method": "gcn",
+                "seed": 11,
+                "params": {"layers": 2},
+                "validation": {"roc_auc": 0.81},
+                "test": {"roc_auc": 0.79},
+            },
+        )
+
     def test_evaluate_with_validation_threshold_reuses_the_selected_threshold(self) -> None:
         validation_metrics, test_metrics = evaluate_with_validation_threshold(
             y_val_true=[0, 1, 1, 0],
@@ -69,6 +93,24 @@ class EvaluationTests(unittest.TestCase):
         )
         self.assertIn("common_neighbors", summary)
         self.assertIn("common_neighbors_directed_seed7.json", summary)
+
+    def test_describe_experiment_result_respects_optional_metric_flags(self) -> None:
+        result = build_experiment_result(
+            dataset="Cora",
+            method="graphsage",
+            seed=7,
+            params={},
+            validation_metrics=make_metrics(roc_auc=0.66),
+            test_metrics=make_metrics(roc_auc=0.77, average_precision=0.55),
+        )
+
+        summary = describe_experiment_result(
+            result,
+            include_validation_auc=False,
+            include_test_average_precision=True,
+        )
+
+        self.assertEqual(summary, "Cora graphsage: test_auc=0.7700 test_ap=0.5500")
 
 
 class JsonIoTests(unittest.TestCase):
