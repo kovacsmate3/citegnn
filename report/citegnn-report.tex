@@ -16,6 +16,7 @@
 \usepackage{array}
 
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{T}{>{\ttfamily\raggedright\arraybackslash\hspace{0pt}}p{4.2cm}}
 
 \geometry{margin=2.0cm}
 \setlist{leftmargin=*, topsep=2pt, itemsep=1pt, parsep=0pt}
@@ -83,7 +84,8 @@ The saved result files use a stable naming pattern, for example \texttt{results/
 \footnotesize
 \caption{Local notebooks used to inspect, rerun, and summarize the Week 9 pipeline.}
 \label{tab:notebooks}
-\begin{tabularx}{\linewidth}{@{}>{\ttfamily\raggedright\arraybackslash}p{3.6cm}Y@{}}
+\renewcommand{\arraystretch}{1.08}
+\begin{tabularx}{\linewidth}{@{}TY@{}}
 \toprule
 \textbf{Notebook} & \textbf{Role in the workflow} \\
 \midrule
@@ -94,6 +96,7 @@ gnn\_baselines\_demo & Runs the shared full-batch GNN pipeline for both GCN and 
 results\_diagnostics\_dashboard & Reuses the plotting helpers to inspect coverage, ranking consistency, and optimization behavior across the saved result files. \\
 \bottomrule
 \end{tabularx}
+\renewcommand{\arraystretch}{1}
 \end{table}
 
 \section{Experiments and Results}
