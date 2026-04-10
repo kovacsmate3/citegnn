@@ -1,93 +1,213 @@
+**[Read the detailed Project Report (PDF)](report/citegnn-report.pdf)**
+
+
 # CiteGNN
 
+Link prediction in citation networks using classical graph methods and graph neural networks.
 
+Current scope:
 
-## Getting started
+- datasets: `Cora`, `PubMed`
+- task: citation link prediction
+- framework: PyTorch Geometric
+- package manager: `uv`
+- status: data pipeline and shared evaluation utilities implemented
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Environment
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+The shared project configuration defaults to CPU PyTorch wheels through `uv`.
 
-## Add your files
+Key points:
 
-* [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+- Python target: `>=3.14`
+- package manager: `uv`
+- default PyTorch source: `https://download.pytorch.org/whl/cpu`
 
+Install the default environment:
+
+```bash
+uv lock
+uv sync
 ```
-cd existing_repo
-git remote add origin https://szofttech.inf.elte.hu/gnn/gnn-2025-2026-2/citegnn.git
-git branch -M master
-git push -uf origin master
+
+Run the current checks:
+
+```bash
+uv run python -m compileall src scripts
+uv run mypy src scripts
+PYTHONPATH=src uv run coverage run -m unittest discover -s tests -v
+uv run coverage report
 ```
 
-## Integrate with your tools
+## CUDA Override
 
-* [Set up project integrations](https://szofttech.inf.elte.hu/gnn/gnn-2025-2026-2/citegnn/-/settings/integrations)
+The repository is intentionally configured for CPU by default so CI and local development stay predictable.
 
-## Collaborate with your team
+If you have a CUDA-capable machine and want to use CUDA wheels locally, override the PyTorch source in your local checkout before syncing.
+The project already declares both the CPU and CUDA indexes, so you only need to change `tool.uv.sources`.
 
-* [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+Current CPU configuration in [pyproject.toml](pyproject.toml):
 
-## Test and Deploy
+```toml
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+torchvision = [{ index = "pytorch-cpu" }]
+```
 
-Use the built-in continuous integration in GitLab.
+Example local CUDA override for CUDA 12.8:
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+```toml
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128" }]
+torchvision = [{ index = "pytorch-cu128" }]
+```
 
-***
+After changing `tool.uv.sources`, regenerate the lockfile and sync:
 
-# Editing this README
+```bash
+uv lock
+uv sync
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Then verify the installed backend:
 
-## Suggestions for a good README
+```bash
+uv run python -c "import torch; print(torch.__version__); print(torch.cuda.is_available())"
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Notes:
 
-## Name
-Choose a self-explaining name for your project.
+- This override is intended for local development on GPU machines.
+- The shared repository and CI should stay on CPU unless the team explicitly decides to support CUDA in the common environment.
+- If you switch between CPU and CUDA frequently, expect to re-lock and re-sync.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+## Data Pipeline
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+Current implementation:
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+- dataset loading through `Planetoid`
+- direct module-level imports for `torch` and `torch_geometric`
+- preserved `train_mask`, `val_mask`, `test_mask`
+- link-prediction split artifact generation
+- default undirected link-prediction protocol with split leakage checks
+- smoke-test CLI
+- runtime verified on `Cora` and `PubMed`
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+Main entrypoint:
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+```bash
+python scripts/build_link_prediction_split.py --dataset Cora
+python scripts/build_link_prediction_split.py --dataset PubMed
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+Key modules:
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+- [src/citegnn/data/loaders.py](src/citegnn/data/loaders.py)
+- [src/citegnn/data/splits.py](src/citegnn/data/splits.py)
+- [src/citegnn/data/smoke.py](src/citegnn/data/smoke.py)
+- [docs/link_prediction_protocol.md](docs/link_prediction_protocol.md)
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+Demonstration notebooks:
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+- [notebooks/data_pipeline_demo.ipynb](notebooks/data_pipeline_demo.ipynb)
+- [notebooks/heuristic_baselines_demo.ipynb](notebooks/heuristic_baselines_demo.ipynb)
+- [notebooks/node2vec_baseline_demo.ipynb](notebooks/node2vec_baseline_demo.ipynb)
+- [notebooks/gnn_baselines_demo.ipynb](notebooks/gnn_baselines_demo.ipynb)
+- [notebooks/baseline_ablation_report.ipynb](notebooks/baseline_ablation_report.ipynb)
+- [notebooks/results_diagnostics_dashboard.ipynb](notebooks/results_diagnostics_dashboard.ipynb)
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+## Evaluation
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+Current implementation:
 
-## License
-For open source projects, say how it is licensed.
+- shared binary link-prediction metrics
+- validation-threshold selection
+- reusable experiment result schema
+- JSON result writing for later aggregation
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Main modules:
+
+- [src/citegnn/utils/metrics.py](src/citegnn/utils/metrics.py)
+- [src/citegnn/utils/io.py](src/citegnn/utils/io.py)
+- [src/citegnn/evaluation.py](src/citegnn/evaluation.py)
+
+## Heuristic Baselines
+
+Current implementation:
+
+- heuristic scorers built from the training graph only
+- supported methods:
+  - `common_neighbors`
+  - `adamic_adar`
+  - `personalized_pagerank`
+- shared evaluator and JSON result artifacts reused from the main evaluation layer
+
+Run one baseline from a saved split:
+
+```bash
+python scripts/run_heuristic_baselines.py \
+  --split-path artifacts/splits/cora_seed42_lp.pt \
+  --method common_neighbors
+```
+
+Key modules:
+
+- [src/citegnn/baselines/heuristics.py](src/citegnn/baselines/heuristics.py)
+- [scripts/run_heuristic_baselines.py](scripts/run_heuristic_baselines.py)
+
+## Node2Vec Baseline
+
+Current implementation:
+
+- train-only node2vec random walks
+- lightweight PyTorch skip-gram trainer with negative sampling
+- Hadamard edge features from learned node embeddings
+- logistic-regression edge classifier with the shared evaluation layer
+
+Run the baseline from a saved split:
+
+```bash
+python scripts/run_node2vec_baseline.py \
+  --split-path artifacts/splits/cora_seed42_lp.pt
+```
+
+Key modules:
+
+- [src/citegnn/baselines/node2vec.py](src/citegnn/baselines/node2vec.py)
+- [scripts/run_node2vec_baseline.py](scripts/run_node2vec_baseline.py)
+
+## GNN Baselines
+
+Current implementation:
+
+- shared full-batch training loop for link prediction
+- supported encoders:
+  - `gcn`
+  - `graphsage`
+- shared Hadamard-product MLP decoder
+- train-graph-only message passing with the shared evaluation layer
+
+Run the baselines from a saved split:
+
+```bash
+python scripts/run_gnn_baselines.py \
+  --split-path artifacts/splits/cora_seed42_lp.pt \
+  --method all
+```
+
+Run the shared baseline comparison sweep used by the presentation notebook:
+
+```bash
+python scripts/run_baseline_ablation.py
+```
+
+Key modules:
+
+- [src/citegnn/baselines/gnn.py](src/citegnn/baselines/gnn.py)
+- [scripts/run_gnn_baselines.py](scripts/run_gnn_baselines.py)
+
+## Notes
+
+The split policy for link prediction is still an open protocol decision.
+The current pipeline preserves the original Planetoid node masks and generates link-prediction splits separately.
+Before experiments are finalized, the split strategy should be checked against the papers cited in [proposal/references.bib](proposal/references.bib).

@@ -1,0 +1,29 @@
+{
+  "dataset": "Cora",
+  "method": "personalized_pagerank",
+  "params": {
+    "alpha": 0.85,
+    "is_undirected": true,
+    "split_seed": 42,
+    "train_graph_edges": 7392
+  },
+  "seed": 42,
+  "test": {
+    "average_precision": 0.862787667716463,
+    "f1": 0.7680851063829788,
+    "positive_rate": 0.3909952606635071,
+    "precision": 0.8751515151515151,
+    "recall": 0.6843601895734597,
+    "roc_auc": 0.7942265447766222,
+    "threshold": 0.00010068128911651012
+  },
+  "validation": {
+    "average_precision": 0.8620481755757523,
+    "f1": 0.7829698857736241,
+    "positive_rate": 0.41366223908918404,
+    "precision": 0.8646788990825688,
+    "recall": 0.715370018975332,
+    "roc_auc": 0.7946397387381224,
+    "threshold": 0.00010068128911651012
+  }
+}

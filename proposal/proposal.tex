@@ -1,0 +1,446 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\usepackage{setspace}
+
+% Any other packages
+\usepackage{float}
+
+\geometry{margin=2.5cm}
+\onehalfspacing
+
+\title{
+Link Prediction in Citation Networks using Graph Neural Networks\\
+\large Master-Level Graph Neural Networks Course Project Proposal
+}
+
+\author{
+S\'andor Baranyi \\ \texttt{ct9xfj@inf.elte.hu}
+\and
+Bal\'azs Bord\'acs \\ \texttt{adjdme@inf.elte.hu}
+\and
+M\'at\'e Kov\'acs \\ \texttt{u5bky4@inf.elte.hu}
+\and
+Adorj\'an Nagy-Mohos \\ \texttt{d5vd5e@inf.elte.hu}
+}
+
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This project studies link prediction in citation networks as a proxy task for citation recommendation.
+Using benchmark datasets such as Cora and PubMed, we compare classical link prediction methods
+with simple Graph Neural Network (GNN) baselines under a fully reproducible, CPU-friendly setup.
+The project evaluates whether feature-aware message-passing models, specifically GCN and GraphSAGE,
+improve over non-neural approaches such as local link heuristics and node2vec-based edge scoring.
+Our primary research lever is the effect of citation directionality, comparing directed and symmetrized
+graph constructions. As a secondary lever, we investigate whether lightweight structural or positional
+augmentations improve prediction quality. The outcome of the project is not architectural novelty,
+but a careful and reproducible comparison of which modeling choices matter most for citation link prediction.
+\end{abstract}
+
+\section{Introduction}
+
+Graph-structured data appear in many real-world applications,
+including social networks, biological networks, and citation networks.
+Citation graphs represent relationships between scientific papers,
+where nodes correspond to papers, and edges represent citation links.
+
+Predicting missing links in citation networks can be interpreted as
+recommending relevant references for a given paper.
+This task is important for recommendation systems, knowledge graph completion,
+and scientific information retrieval.
+
+Graph Neural Networks (GNNs) have recently shown     strong performance on graph learning tasks.
+In this project, we investigate whether simple GNN architectures
+can outperform classical link prediction methods
+on citation graph benchmarks.
+
+\section{Problem Definition}
+
+We model a citation network as a graph $G=(V,E)$, where nodes correspond to papers
+and directed edges correspond to citation relations.
+The project studies \emph{link prediction}: given a pair of papers $(u,v)$,
+the model predicts whether there should be a citation link from $u$ to $v$.
+
+In our setting, this serves as a controlled proxy for citation recommendation.
+More precisely, the task is to recover held-out citation edges among papers already present
+in the graph, rather than to build a production-grade scholarly recommender for newly written papers.
+This framing keeps the problem well defined, benchmarkable, and feasible within the compute budget
+of the course.
+
+Formally, let $E_{\mathrm{train}} \subset E$ denote the observed training edges.
+The goal is to learn a scoring function
+\[
+s(u,v) \in \mathbb{R}
+\]
+that assigns higher scores to true but hidden citation edges than to non-edges.
+Positive examples are sampled from held-out citation edges, while negative examples are sampled
+from node pairs without observed citation links.
+
+\section{Objectives and Research Questions}
+
+The main objective of the project is to determine whether simple GNN-based link prediction models
+provide measurable benefits over classical methods on citation network benchmarks.
+
+\subsection{Research Questions}
+\begin{itemize}
+    \item \textbf{RQ1:} Do feature-aware GNN models outperform classical link prediction baselines on citation graphs?
+    \item \textbf{RQ2:} Does preserving citation directionality improve predictive performance compared to symmetrized graphs?
+    \item \textbf{RQ3:} Do lightweight structural or positional augmentations improve the performance of simple GNN baselines?
+    \item \textbf{RQ4:} Can all experiments be executed reproducibly on CPU within the project constraints?
+\end{itemize}
+
+\subsection{Hypotheses}
+\begin{itemize}
+    \item \textbf{H1:} GCN and GraphSAGE will outperform local heuristic baselines because they combine graph structure with node features.
+    \item \textbf{H2:} Directed modeling will outperform undirected modeling because citation relations are inherently asymmetric.
+    \item \textbf{H3:} Adding lightweight structural or positional information will improve link prediction over plain message passing.
+    \item \textbf{H4:} A controlled experimental pipeline based on Cora and PubMed, together with lightweight baselines and shallow GNN models, will be feasible to run reproducibly on CPU without requiring specialized hardware.
+\end{itemize}
+
+\section{Novelty and Motivation}
+
+Citation datasets are often used for node classification, whereas our project emphasizes link prediction instead.
+
+This project focuses on:
+\begin{itemize}
+\item link prediction instead of node classification,
+\item comparison of classical and neural methods,
+\item structural and positional encodings,
+\item directed vs. undirected citation graphs.
+\end{itemize}
+
+The goal is to analyze how much benefit GNNs provide
+over simpler graph algorithms.
+
+\section{Dataset Audit}
+
+We use two standard citation-network benchmarks from the Planetoid family: Cora and PubMed, which are well suited to this project because they provide node features, are widely used in graph learning,
+and remain small enough for reproducible CPU-based experiments.
+
+In the default PyTorch Geometric Planetoid representation, citation edges are stored in a symmetrized form,
+so the raw \texttt{edge\_index} contains both directions of an undirected connection.
+For directionality experiments, we plan to reconstruct a directed variant from the original citation relations, subject to data availability in the benchmark source.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccccccc}
+\toprule
+Dataset & Nodes & Edge entries & Unique links & Features & Classes & Sparsity & Avg.\ degree \\
+\midrule
+Cora   & 2708  & 10556 & 5278  & 1433 & 7 & 98.73\% & 3.90 \\
+PubMed & 19717 & 88648 & 44324 & 500  & 3 & 89.98\% & 4.50 \\
+\bottomrule
+\end{tabular}
+\caption{Summary of the datasets used in our experiments.}
+\end{table}
+
+Cora uses sparse binary bag-of-words features, while PubMed provides denser TF--IDF style features.
+Both graphs are sparse, but PubMed is structurally simpler: it forms a single connected component,
+whereas Cora contains multiple components.
+
+These datasets are appropriate for controlled comparison between classical and GNN-based link prediction methods,
+but they remain simplified benchmarks rather than realistic large-scale citation recommendation systems.
+Since the standard Planetoid masks are designed for node classification, our project will use a fixed edge-level split for link prediction.
+
+\section{Literature Review}
+
+Graph Neural Networks have become a central approach for learning on relational data,
+because they combine node attributes with graph topology through iterative neighborhood aggregation.
+For citation networks in particular, this is appealing because both text-derived node features
+and citation structure are informative.
+Early benchmark work on citation graphs established datasets such as Cora, CiteSeer, and PubMed
+as standard testbeds for graph learning, and showed that these networks exhibit strong homophily
+and meaningful structural regularities.
+In particular, prior analysis reported high assortativity for Cora and PubMed,
+which supports the intuition that neighboring papers often belong to related topics.
+This makes citation networks a natural setting for feature-aware graph methods
+\cite{sen2008collective,namata2012query}.
+
+A major milestone in this literature is the Graph Convolutional Network (GCN) of
+Kipf and Welling \cite{kipf2017semi}.
+GCN simplified spectral graph convolutions into a practical message-passing model
+that efficiently aggregates information from local neighborhoods.
+Their work demonstrated strong node classification performance on citation datasets such as
+Cora and PubMed, showing that even shallow neural architectures can exploit both graph structure
+and node features effectively.
+Although the original GCN paper focused on semi-supervised node classification rather than link prediction,
+its importance for our project is twofold.
+First, it provides a simple and widely accepted GNN baseline.
+Second, its layer design captures the basic intuition that each node representation should be refined
+by mixing information from adjacent nodes.
+Because our project aims to remain CPU-friendly and reproducible,
+GCN is especially attractive as a baseline architecture:
+it is conceptually simple, computationally lightweight, and well supported in modern libraries.
+
+A closely related but conceptually different line of work is GraphSAGE,
+introduced by Hamilton, Ying, and Leskovec \cite{hamilton2017inductive}.
+Whereas GCN is commonly discussed in a transductive setting,
+GraphSAGE was designed explicitly for inductive learning:
+instead of learning an embedding per node,
+it learns aggregation functions that can generate embeddings for previously unseen nodes.
+This distinction is relevant for recommendation-style applications,
+although our project itself focuses on held-out links among papers already present in the graph.
+Even in this transductive setting, GraphSAGE remains a useful contrasting aggregation baseline.
+GraphSAGE also broadens the design space by allowing different aggregation operators,
+including mean, pooling, and LSTM-based variants.
+The original paper showed that GraphSAGE outperformed strong baselines on evolving citation data,
+and emphasized that node features and local neighborhood patterns can be jointly exploited.
+For our project, GraphSAGE is therefore a natural second GNN baseline:
+it remains simple enough for course-level experiments,
+while broadening the comparison with a conceptually different neighborhood aggregation strategy.
+
+Before the rise of GNNs, graph representation learning for link prediction
+was dominated by unsupervised embedding methods and handcrafted structural heuristics.
+Among these, node2vec \cite{grover2016node2vec} is one of the most influential.
+node2vec learns continuous node embeddings by optimizing neighborhood co-occurrence
+under biased random walks, with parameters controlling a trade-off between breadth-first
+and depth-first exploration.
+This flexibility allows the method to emphasize either structural equivalence
+or community-based similarity, depending on the graph.
+Importantly for our project, node2vec was explicitly evaluated on link prediction tasks,
+where edge representations are formed by combining pairs of node embeddings.
+Because it is scalable, conceptually elegant, and remains competitive in many settings,
+node2vec is an essential classical baseline.
+It also provides a useful contrast with GNNs:
+where node2vec learns embeddings from graph structure alone,
+GCN and GraphSAGE can additionally exploit the provided bag-of-words or TF--IDF features.
+This comparison directly matches one of our central research questions,
+namely whether feature-aware neural message passing yields clear gains
+over strong structure-driven baselines.
+
+A different classical perspective comes from graph heuristics and ranking methods.
+PageRank \cite{page1999pagerank}, although originally developed to rank web pages,
+is also fundamental in citation analysis because it measures node importance
+through recursive influence propagation.
+While PageRank is not a link predictor in the narrow sense,
+it provides a useful non-neural structural ranking reference for identifying important or relevant papers.
+Similarly, local heuristics such as Common Neighbors and Adamic--Adar
+have long served as competitive, low-cost link prediction methods.
+These approaches are especially valuable in a course project setting
+because they are easy to implement, interpretable, and computationally inexpensive.
+Including them helps us avoid an overly narrow comparison.
+Instead, our evaluation can position GNNs against both embedding-based and heuristic alternatives,
+which gives a more meaningful picture of what neural methods actually add.
+
+For the specific task of link prediction with neural models,
+one of the most relevant references is SEAL by Zhang and Chen \cite{zhang2018link}.
+SEAL argues that link prediction should not rely solely on global node embeddings;
+instead, it extracts the local enclosing subgraph around a candidate edge
+and uses a GNN to classify whether that edge should exist.
+This is conceptually important because it reframes link prediction
+as a subgraph classification problem rather than a pure embedding reconstruction problem.
+The paper reports strong improvements over latent feature methods such as
+matrix factorization, node2vec, LINE, and variational graph autoencoders,
+suggesting that the local subgraph structure contains predictive information
+that simple embeddings may fail to capture.
+SEAL is highly relevant to our proposal for two reasons.
+First, it strengthens the case that GNNs are a suitable family of models for link prediction,
+not only for node classification.
+Second, it motivates our interest in structural encodings and positional information:
+the success of SEAL depends heavily on making local structural roles visible to the model.
+Although implementing full SEAL may be beyond the desired scope of a CPU-friendly course project,
+its ideas justify our plan to experiment with simple structural or positional encodings
+on top of GCN and GraphSAGE.
+
+Another important thread in the literature concerns benchmarking and reproducibility.
+Dwivedi et al. \cite{dwivedi2023benchmarking} argue that GNN research has often suffered
+from inconsistent evaluation settings, non-comparable implementations,
+and dataset choices that make it difficult to draw reliable conclusions.
+Their benchmarking work emphasizes standardized pipelines,
+careful separation of model classes, and reproducible experimentation.
+This perspective is directly relevant to our project design.
+Because we work within a course setting and limited compute budget,
+it is important that our comparisons remain fair:
+the same train/test splits, the same negative sampling strategy,
+and comparable optimization settings should be used across methods whenever possible.
+The benchmarking literature therefore does not merely provide background;
+it shapes our methodology.
+In particular, it supports our decision to use standard datasets,
+fixed random seeds, and CPU-friendly baselines rather than overly complex architectures.
+
+Finally, prior work on citation datasets themselves provides useful context
+for interpreting model performance.
+Sen et al. \cite{sen2008collective} and Namata et al. \cite{namata2012query}
+document the characteristics of benchmark citation networks
+and show that structure and attributes interact in nontrivial ways.
+Their analyses suggest that citation graphs often have strong topical correlation along edges,
+which helps explain why neighborhood aggregation methods perform well.
+At the same time, they also highlight limitations of the datasets:
+they are relatively small, sparse, and simplified compared to real scholarly recommendation systems.
+This is an important caveat for our project.
+Results on Cora or PubMed should be interpreted as evidence on controlled benchmarks,
+not as definitive proof of effectiveness in recommending production-scale citations.
+
+\section{Methodology}
+
+Our pipeline consists of four stages:
+\begin{enumerate}
+    \item \textbf{Graph preparation:} load the citation graph and construct both directed and symmetrized variants.
+    \item \textbf{Edge split:} create reproducible train/validation/test splits for link prediction using a fixed random seed.
+    \item \textbf{Model training:} train classical baselines and GNN encoders under comparable conditions.
+    \item \textbf{Evaluation:} compare methods using classification- and ranking-based metrics on held-out edges.
+\end{enumerate}
+
+For the GNN models, we use an encoder--decoder setup.
+The encoder computes node embeddings $z_u$ and $z_v$ from the node features and graph structure.
+The decoder then assigns a link score $s(u,v)$ to a candidate edge $(u,v)$. We will evaluate two simple decoder functions:
+\begin{itemize}
+    \item \textbf{Dot-Product Scoring:} $s(u,v) = z_u^T z_v$
+    \item \textbf{MLP Scoring:} $s(u,v) = \mathrm{MLP}(z_u \parallel z_v)$ or $s(u,v) = \mathrm{MLP}(z_u \odot z_v)$
+\end{itemize}
+
+To keep the comparison fair, all methods will use the same edge split, the same random seeds,
+and the same negative sampling policy whenever possible.
+
+\section{Baseline Methods}
+
+As detailed in the literature review, we use three types of non-neural baselines to isolate the performance gains of neural message passing:
+\begin{itemize}
+\item \textbf{Local heuristic methods:} Common Neighbors and Adamic--Adar.
+\item \textbf{Unsupervised Embeddings:} node2vec \cite{grover2016node2vec} embeddings combined with the aforementioned edge scoring functions.
+\item \textbf{Global structural ranking:} PageRank \cite{page1999pagerank}, included as a lightweight structural reference rather than as a direct pairwise link predictor.
+\end{itemize}
+
+\section{GNN Models}
+
+We use two simple and well-established GNN encoders implemented via PyTorch Geometric:
+
+\begin{itemize}
+\item \textbf{GCN:} a lightweight transductive message-passing baseline \cite{kipf2017semi}.
+\item \textbf{GraphSAGE:} an inductive neighborhood aggregation baseline \cite{hamilton2017inductive}.
+\end{itemize}
+
+These models are deliberately simple.
+The goal of the project is not to propose a new architecture,
+but to determine whether standard feature-aware GNN encoders already provide advantages on citation link prediction compared to structural heuristics.
+
+Both models will first be evaluated in a plain configuration.
+Later, ablations will investigate whether their performance changes under directed graph modeling
+and under additional structural or positional information.
+
+\section{Research Extensions}
+
+To keep the project focused, we define one primary and one secondary research lever.
+
+\subsection{Primary Lever: Directed vs.\ Undirected Citation Modeling}
+Citation graphs are naturally directional, but many GNN pipelines symmetrize the graph for convenience.
+We will ablate the models against:
+\begin{itemize}
+    \item directed citation modeling,
+    \item symmetrized (undirected) citation modeling.
+\end{itemize}
+
+\subsection{Secondary Lever: Structural or Positional Augmentation}
+We will augment the baseline GNNs with lightweight structural or positional information,
+for example, degree-based features or simple Laplacian eigenvectors.
+The exact augmentation will be chosen so that it remains CPU-friendly and easy to reproduce.
+
+\subsection{Planned Ablations}
+\begin{itemize}
+    \item Plain GNN vs.\ GNN + structural/positional augmentation.
+    \item Directed vs.\ undirected graph construction.
+    \item Shallow vs.\ slightly deeper encoder configuration.
+\end{itemize}
+
+\section{Evaluation}
+
+Because the original Planetoid benchmarks are primarily distributed with node-classification splits,
+we will construct a fixed and reproducible \emph{edge-level} split for link prediction.
+All compared methods will use the same train/validation/test partition.
+
+For ranking-based evaluation, each source paper will be used to rank candidate target papers against sampled non-edges,
+which allows us to report MRR and Hits@10 in addition to classification metrics.
+
+\subsection{Primary Metrics}
+\begin{itemize}
+    \item \textbf{ROC-AUC} (Area Under the Receiver Operating Characteristic Curve)
+    \item \textbf{AP} (Average Precision)
+\end{itemize}
+
+\subsection{Secondary Metrics}
+\begin{itemize}
+    \item \textbf{MRR} (Mean Reciprocal Rank)
+    \item \textbf{Hits@10}
+\end{itemize}
+
+Accuracy, precision, recall, and F1 may also be reported for completeness,
+but they will not be treated as the main metrics,
+because link prediction depends strongly on the choice and ratio of negative samples.
+
+\subsection{Fairness and Leakage Control}
+Special care will be taken to avoid information leakage across splits,
+especially in the undirected setting where reverse edges ($v \rightarrow u$) may otherwise inadvertently appear in different partitions than forward edges ($u \rightarrow v$).
+
+\section{Reproducibility Plan}
+
+To support reproducibility, the project will use a GitLab repository,
+fixed random seeds, a documented Python environment, and a shared PyTorch Geometric pipeline
+for data loading, splitting, training, and evaluation.
+All reported experiments will be designed to run on CPU under the course constraints.
+
+\newpage
+\section{Work Plan}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lp{12cm}}
+\toprule
+\textbf{Week} & \textbf{Planned work} \\
+\midrule
+5  & Finalize proposal, repository scaffold, dataset audit, and evaluation protocol. \\
+6  & Implement data loading, reproducible edge splits, and heuristic baselines. \\
+7  & Implement node2vec baseline and first evaluation pipeline. \\
+8  & Implement GCN and GraphSAGE link prediction baselines. \\
+9  & Run baseline experiments and first ablations on directionality. Submit Midterm Report. \\
+10--11 & Add structural/positional augmentation and analyze secondary ablations. \\
+12 & Consolidate results, tables, and reproducibility scripts. \\
+13 & Final report, trained models/demo, and presentation. \\
+\bottomrule
+\end{tabular}
+\caption{Planned timeline aligned with project milestones.}
+\end{table}
+
+\section{Risks and Limitations}
+
+\begin{itemize}
+    \item \textbf{Benchmark simplicity:} Cora and PubMed are useful, but small, and may not reflect realistic recommendation settings.
+    \item \textbf{Data leakage:} Careless splitting can leak reverse-edge information between partitions.
+    \item \textbf{Overfitting:} Small, sparse graphs may favor overly tuned models. We will employ early stopping and regularized, shallow GNNs to mitigate this.
+    \item \textbf{Scope creep:} Too many levers would weaken the experimental focus. We are restricting ourselves to two specific ablations (Directionality and Structural Encodings).
+\end{itemize}
+
+\section{Conclusion}
+
+This proposal defines a focused and reproducible study of link prediction in citation networks
+using benchmark datasets from the Planetoid family.
+Rather than introducing a novel architecture, the project aims to provide a careful comparison
+between local heuristic methods, embedding-based baselines, and simple Graph Neural Networks.
+
+The central research question is whether feature-aware GNN models such as GCN and GraphSAGE
+offer clear advantages over classical approaches for citation link prediction,
+and whether these results depend on modeling choices such as citation directionality
+and lightweight structural or positional augmentation.
+
+By using fixed edge-level splits, CPU-friendly models, and controlled ablations,
+the project is designed to be feasible within the constraints of the course
+while still producing a meaningful experimental analysis.
+The expected outcome is a clear understanding of which components matter most
+for citation link prediction on standard benchmark graphs.
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}

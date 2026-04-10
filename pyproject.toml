@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=81"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "citegnn"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "ipykernel>=7.2.0",
+    "networkx[default]>=3.6.1",
+    "pandas>=3.0.1",
+    "scikit-learn>=1.8.0",
+    "seaborn>=0.13.2",
+    "torch>=2.10.0",
+    "torch-geometric>=2.7.0",
+    "yfiles-jupyter-graphs>=1.10.10",
+]
+
+[dependency-groups]
+dev = [
+    "coverage[toml]>=7.11.0",
+    "mypy>=1.18.2",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.mypy]
+python_version = "3.14"
+ignore_missing_imports = true
+check_untyped_defs = true
+files = ["src", "scripts"]
+
+[tool.coverage.run]
+branch = true
+relative_files = true
+source = ["citegnn"]
+
+[tool.coverage.report]
+fail_under = 75
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "if __name__ == .__main__.:",
+]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+torchvision = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
