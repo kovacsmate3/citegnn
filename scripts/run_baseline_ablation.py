@@ -5,6 +5,10 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from citegnn.baselines.feature_only import (
+    FeatureOnlyBaselineConfig,
+    run_feature_only_baseline,
+)
 from citegnn.baselines.gnn import GNNBaselineConfig, GNNMethod, run_gnn_baseline
 from citegnn.baselines.heuristics import HeuristicMethod, run_heuristic_baseline
 from citegnn.baselines.node2vec import Node2VecConfig, run_node2vec_baseline
@@ -83,6 +87,24 @@ def parse_args() -> argparse.Namespace:
         default=3,
         help="Number of skip-gram training epochs for node2vec.",
     )
+    parser.add_argument(
+        "--feature-only-hidden-dim",
+        type=int,
+        default=256,
+        help="Hidden dimension of the feature-only pairwise MLP.",
+    )
+    parser.add_argument(
+        "--feature-only-epochs",
+        type=int,
+        default=100,
+        help="Maximum number of epochs for the feature-only pairwise baseline.",
+    )
+    parser.add_argument(
+        "--feature-only-patience",
+        type=int,
+        default=10,
+        help="Early-stopping patience for the feature-only pairwise baseline.",
+    )
     return parser.parse_args()
 
 
@@ -131,6 +153,11 @@ def main() -> None:
         patience=args.gnn_patience,
     )
     node2vec_config = Node2VecConfig(epochs=args.node2vec_epochs)
+    feature_only_config = FeatureOnlyBaselineConfig(
+        hidden_dim=args.feature_only_hidden_dim,
+        epochs=args.feature_only_epochs,
+        patience=args.feature_only_patience,
+    )
 
     for dataset_name in args.datasets:
         split = _build_split(
@@ -147,6 +174,13 @@ def main() -> None:
 
         node2vec_result = run_node2vec_baseline(split, config=node2vec_config)
         _print_saved_result(args.result_output_dir, result=node2vec_result)
+
+        feature_only_result = run_feature_only_baseline(
+            split,
+            config=feature_only_config,
+            data_root=str(args.data_root),
+        )
+        _print_saved_result(args.result_output_dir, result=feature_only_result)
 
         for gnn_method in GNNMethod:
             result = run_gnn_baseline(
