@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-GraphVariant = Literal["undirected", "directed", "all"]
 MetricName = Literal["roc_auc", "average_precision"]
 ResultTable = dict[str, dict[str, float]]
 ResultRecord = dict[str, Any]
@@ -44,12 +43,6 @@ def parse_args() -> argparse.Namespace:
         help="Path where the generated plot is written.",
     )
     parser.add_argument(
-        "--graph-variant",
-        choices=("undirected", "directed", "all"),
-        default="undirected",
-        help="Which saved graph variant to visualize.",
-    )
-    parser.add_argument(
         "--metric",
         choices=("roc_auc", "average_precision"),
         default="roc_auc",
@@ -70,29 +63,16 @@ def _result_method_label(method_name: str) -> str:
     return _METHOD_LABELS.get(method_name, method_name.replace("_", " ").title())
 
 
-def _matches_variant(is_undirected: bool, graph_variant: GraphVariant) -> bool:
-    """Return whether one saved result belongs in the requested graph-variant slice."""
-
-    if graph_variant == "all":
-        return True
-    if graph_variant == "undirected":
-        return is_undirected
-    return not is_undirected
-
-
-def _path_preference(path: Path, *, is_undirected: bool) -> tuple[int, str]:
+def _path_preference(path: Path) -> tuple[int, str]:
     """Rank duplicate artifact paths so the current naming scheme wins deterministically."""
 
     name = path.name
-    if is_undirected:
-        return (1 if "_undirected_" in name else 0, name)
-    return (0 if "_directed_" in name else 1, name)
+    return (1 if "_undirected_" in name else 0, name)
 
 
 def load_result_records(
     results_dir: Path,
     *,
-    graph_variant: GraphVariant = "all",
     seed: int | None = None,
 ) -> list[ResultRecord]:
     """Load matching result JSON files into notebook-friendly records."""
@@ -100,7 +80,7 @@ def load_result_records(
     if not results_dir.exists():
         raise FileNotFoundError(f"Directory not found: {results_dir}")
 
-    selected_results: dict[tuple[str, str, int, bool], tuple[tuple[int, str], ResultRecord]] = {}
+    selected_results: dict[tuple[str, str, int], tuple[tuple[int, str], ResultRecord]] = {}
 
     for json_file in sorted(results_dir.rglob("*.json")):
         payload: dict[str, Any] = json.loads(json_file.read_text(encoding="utf-8"))
@@ -108,10 +88,6 @@ def load_result_records(
         dataset_name = str(payload.get("dataset", "Unknown"))
         method_name = _result_method_label(str(payload.get("method", "Unknown")))
         result_seed = int(payload.get("seed", 0))
-        is_undirected = bool(params.get("is_undirected", True))
-
-        if not _matches_variant(is_undirected, graph_variant):
-            continue
         if seed is not None and result_seed != seed:
             continue
 
@@ -121,7 +97,6 @@ def load_result_records(
             "dataset": dataset_name,
             "method": method_name,
             "seed": result_seed,
-            "graph_variant": "undirected" if is_undirected else "directed",
             "test_roc_auc": float(test_metrics.get("roc_auc", float("nan"))),
             "test_average_precision": float(
                 test_metrics.get("average_precision", float("nan"))
@@ -134,8 +109,8 @@ def load_result_records(
             "relative_path": str(json_file.relative_to(results_dir)),
         }
 
-        key = (dataset_name, method_name, result_seed, is_undirected)
-        candidate = (_path_preference(json_file, is_undirected=is_undirected), record)
+        key = (dataset_name, method_name, result_seed)
+        candidate = (_path_preference(json_file), record)
         current = selected_results.get(key)
         if current is None or candidate[0] < current[0]:
             selected_results[key] = candidate
@@ -152,7 +127,6 @@ def load_result_records(
 def load_results(
     results_dir: Path,
     *,
-    graph_variant: GraphVariant = "undirected",
     metric: MetricName = "roc_auc",
     seed: int | None = None,
 ) -> ResultTable:
@@ -163,7 +137,6 @@ def load_results(
     metric_key = f"test_{metric}"
     for record in load_result_records(
         results_dir,
-        graph_variant=graph_variant,
         seed=seed,
     ):
         aggregated_scores[record["dataset"]][record["method"]].append(float(record[metric_key]))
@@ -182,7 +155,6 @@ def plot_grouped_bar_chart(
     output_path: Path,
     *,
     metric: MetricName,
-    graph_variant: GraphVariant,
 ) -> None:
     """Render one grouped comparison chart and save it to disk."""
 
@@ -207,9 +179,8 @@ def plot_grouped_bar_chart(
         ax.bar_label(rects, padding=3, fmt="%.3f", fontsize=9)
 
     metric_label = "ROC-AUC" if metric == "roc_auc" else "Average Precision"
-    variant_label = graph_variant.title()
     ax.set_ylabel(f"Test {metric_label}", fontsize=12)
-    ax.set_title(f"Link Prediction Performance Comparison ({variant_label})", fontsize=14, pad=20)
+    ax.set_title("Link Prediction Performance Comparison", fontsize=14, pad=20)
     ax.set_xticks(x_positions)
     ax.set_xticklabels(datasets, fontsize=12)
     ax.legend(loc="upper right", title="Models", fontsize=10)
@@ -229,7 +200,6 @@ def main() -> None:
     print(f"Scanning for JSON results in: {args.results_dir}")
     aggregated_data = load_results(
         args.results_dir,
-        graph_variant=args.graph_variant,
         metric=args.metric,
         seed=args.seed,
     )
@@ -237,7 +207,6 @@ def main() -> None:
         aggregated_data,
         args.output_path,
         metric=args.metric,
-        graph_variant=args.graph_variant,
     )
 
 

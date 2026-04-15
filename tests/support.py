@@ -34,7 +34,7 @@ def edge_index_from_pairs(
     return torch.tensor(all_pairs, dtype=torch.long).t().contiguous()
 
 
-def make_graph_data(*, is_directed: bool = False, name: str = "Cora") -> GraphData:
+def make_graph_data(*, name: str = "Cora") -> GraphData:
     x = torch.tensor(
         [
             [3.0, 0.0, 1.0],
@@ -58,7 +58,7 @@ def make_graph_data(*, is_directed: bool = False, name: str = "Cora") -> GraphDa
         (5, 0),
         (2, 5),
     ]
-    edge_index = edge_index_from_pairs(base_pairs, bidirectional=not is_directed)
+    edge_index = edge_index_from_pairs(base_pairs, bidirectional=True)
     return GraphData(
         name=name,
         num_nodes=int(x.size(0)),
@@ -69,16 +69,15 @@ def make_graph_data(*, is_directed: bool = False, name: str = "Cora") -> GraphDa
         train_mask=torch.tensor([True, True, True, False, False, False]),
         val_mask=torch.tensor([False, False, False, True, False, False]),
         test_mask=torch.tensor([False, False, False, False, True, True]),
-        is_directed=is_directed,
+        is_undirected=True,
     )
 
 
-def make_link_prediction_split(*, is_undirected: bool = True) -> LinkPredictionSplit:
+def make_link_prediction_split() -> LinkPredictionSplit:
     train_graph_pairs = [(0, 1), (1, 2), (2, 3), (3, 0), (3, 4)]
     train_supervision_pairs = [(0, 1), (1, 2), (2, 3), (3, 0)]
     return LinkPredictionSplit(
         dataset_name="Cora",
-        is_undirected=is_undirected,
         seed=42,
         val_ratio=0.1,
         test_ratio=0.2,
@@ -86,18 +85,9 @@ def make_link_prediction_split(*, is_undirected: bool = True) -> LinkPredictionS
         train_mask=torch.tensor([True, True, True, False, False, False]),
         val_mask=torch.tensor([False, False, False, True, False, False]),
         test_mask=torch.tensor([False, False, False, False, True, True]),
-        train_graph_edge_index=edge_index_from_pairs(
-            train_graph_pairs,
-            bidirectional=is_undirected,
-        ),
-        val_graph_edge_index=edge_index_from_pairs(
-            train_graph_pairs,
-            bidirectional=is_undirected,
-        ),
-        test_graph_edge_index=edge_index_from_pairs(
-            train_graph_pairs,
-            bidirectional=is_undirected,
-        ),
+        train_graph_edge_index=edge_index_from_pairs(train_graph_pairs, bidirectional=True),
+        val_graph_edge_index=edge_index_from_pairs(train_graph_pairs, bidirectional=True),
+        test_graph_edge_index=edge_index_from_pairs(train_graph_pairs, bidirectional=True),
         train_pos_edge_index=edge_index_from_pairs(train_supervision_pairs),
         val_pos_edge_index=edge_index_from_pairs([(0, 2)]),
         test_pos_edge_index=edge_index_from_pairs([(1, 3)]),

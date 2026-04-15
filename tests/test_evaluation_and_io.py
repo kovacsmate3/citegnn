@@ -74,25 +74,25 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(payload["validation"]["threshold"], 0.4)
         self.assertEqual(payload["test"]["roc_auc"], 0.88)
 
-    def test_save_experiment_result_adds_directed_suffix_for_non_default_graph_variant(self) -> None:
+    def test_save_and_describe_experiment_result_uses_default_filename(self) -> None:
         result = build_experiment_result(
             dataset="Cora",
             method="common_neighbors",
             seed=7,
-            params={"is_undirected": False},
+            params={"alpha": 0.85},
             validation_metrics=make_metrics(threshold=0.4),
             test_metrics=make_metrics(threshold=0.4),
         )
 
-        with workspace_temp_dir("evaluation-directed") as tmp_dir:
+        with workspace_temp_dir("evaluation-summary") as tmp_dir:
             output_path, summary = save_and_describe_experiment_result(result, output_dir=tmp_dir)
 
         self.assertEqual(
             output_path,
-            tmp_dir / "cora" / "common_neighbors_directed_seed7.json",
+            tmp_dir / "cora" / "common_neighbors_seed7.json",
         )
         self.assertIn("common_neighbors", summary)
-        self.assertIn("common_neighbors_directed_seed7.json", summary)
+        self.assertIn("common_neighbors_seed7.json", summary)
 
     def test_describe_experiment_result_respects_optional_metric_flags(self) -> None:
         result = build_experiment_result(

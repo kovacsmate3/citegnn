@@ -96,7 +96,6 @@ def _build_split(
     graph = load_citation_graph(
         dataset_name,
         root=data_root,
-        undirected=True,
     )
     split = create_link_prediction_split(graph, seed=seed)
     save_split_artifact(split, output_dir=split_output_dir)
@@ -140,7 +139,7 @@ def main() -> None:
             data_root=args.data_root,
             split_output_dir=args.split_output_dir,
         )
-        print(f"\n== {dataset_name} / {split.graph_variant} ==")
+        print(f"\n== {dataset_name} ==")
 
         for heuristic_method in HeuristicMethod:
             result = run_heuristic_baseline(split, method=heuristic_method)

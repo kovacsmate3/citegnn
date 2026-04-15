@@ -199,7 +199,6 @@ def run_gnn_baseline(
     graph = load_citation_graph(
         split.dataset_name,
         root=data_root,
-        undirected=split.is_undirected,
         remove_self_loops=True,
     )
     x = graph.x
@@ -275,7 +274,6 @@ def run_gnn_baseline(
     params.update(
         {
             "split_seed": int(split.seed),
-            "is_undirected": bool(split.is_undirected),
             "train_graph_edges": split.train_graph_edge_count,
             "train_supervision_edges": split.train_supervision_edge_count,
             "best_epoch": int(best_epoch),

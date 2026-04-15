@@ -114,8 +114,6 @@ def _build_adjacency(split: LinkPredictionSplit) -> dict[int, list[int]]:
     adjacency_sets: dict[int, set[int]] = defaultdict(set)
     for source, target in _edge_columns(split.train_graph_edge_index):
         adjacency_sets[source].add(target)
-        if split.is_undirected:
-            adjacency_sets[target].add(source)
     num_nodes = int(split.train_mask.numel())
     return {node: sorted(adjacency_sets.get(node, set())) for node in range(num_nodes)}
 
@@ -350,7 +348,6 @@ def run_node2vec_baseline(
     params.update(
         {
             "split_seed": int(split.seed),
-            "is_undirected": bool(split.is_undirected),
             "train_graph_edges": split.train_graph_edge_count,
             "train_supervision_edges": split.train_supervision_edge_count,
         }

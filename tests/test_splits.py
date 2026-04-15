@@ -18,23 +18,20 @@ from tests.support import make_graph_data, make_link_prediction_split, workspace
 
 
 class SplitHelperTests(unittest.TestCase):
-    def test_split_properties_report_graph_variant_and_edge_counts(self) -> None:
-        undirected_split = make_link_prediction_split(is_undirected=True)
-        directed_split = make_link_prediction_split(is_undirected=False)
+    def test_split_properties_report_edge_counts(self) -> None:
+        split = make_link_prediction_split()
 
-        self.assertEqual(undirected_split.graph_variant, "undirected")
-        self.assertEqual(directed_split.graph_variant, "directed")
-        self.assertEqual(undirected_split.train_graph_edge_count, 10)
-        self.assertEqual(undirected_split.train_supervision_edge_count, 8)
+        self.assertEqual(split.train_graph_edge_count, 10)
+        self.assertEqual(split.train_supervision_edge_count, 8)
 
     def test_edge_pairs_canonicalizes_undirected_duplicates(self) -> None:
         edge_index = torch.tensor([[2, 1], [1, 2]], dtype=torch.long)
-        pairs = _edge_pairs(edge_index, is_undirected=True)
+        pairs = _edge_pairs(edge_index)
         self.assertEqual(pairs, {(1, 2)})
 
     def test_edge_pairs_rejects_invalid_shape(self) -> None:
         with self.assertRaisesRegex(ValueError, "shape \\[2, num_edges\\]"):
-            _edge_pairs(torch.tensor([0, 1], dtype=torch.long), is_undirected=True)
+            _edge_pairs(torch.tensor([0, 1], dtype=torch.long))
 
     def test_validate_ratios_rejects_invalid_ranges(self) -> None:
         with self.assertRaisesRegex(ValueError, "val_ratio must be in"):
@@ -59,13 +56,13 @@ class SplitHelperTests(unittest.TestCase):
 
 class SplitArtifactTests(unittest.TestCase):
     def test_create_link_prediction_split_rejects_non_positive_negative_ratio(self) -> None:
-        graph = make_graph_data(is_directed=False)
+        graph = make_graph_data()
 
         with self.assertRaisesRegex(ValueError, "negative_ratio must be positive"):
             create_link_prediction_split(graph, negative_ratio=0.0)
 
     def test_create_link_prediction_split_is_reproducible_with_global_seed(self) -> None:
-        graph = make_graph_data(is_directed=False)
+        graph = make_graph_data()
 
         seed_everything(123)
         split_a = create_link_prediction_split(
@@ -102,14 +99,6 @@ class SplitArtifactTests(unittest.TestCase):
         self.assertEqual(loaded.dataset_name, split.dataset_name)
         self.assertTrue(torch.equal(loaded.train_graph_edge_index, split.train_graph_edge_index))
         self.assertTrue(torch.equal(loaded.test_neg_edge_index, split.test_neg_edge_index))
-
-    def test_save_split_artifact_adds_directed_suffix_for_non_default_graph_variant(self) -> None:
-        split = make_link_prediction_split(is_undirected=False)
-
-        with workspace_temp_dir("splits-directed") as tmp_dir:
-            artifact_path = save_split_artifact(split, output_dir=tmp_dir)
-
-        self.assertEqual(artifact_path.name, "cora_directed_seed42_lp.pt")
 
     def test_validate_link_prediction_split_rejects_leakage(self) -> None:
         split = make_link_prediction_split()

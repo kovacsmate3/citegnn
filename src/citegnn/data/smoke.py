@@ -30,11 +30,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Negative-to-positive sampling ratio for each supervision split.",
     )
     parser.add_argument(
-        "--directed",
-        action="store_true",
-        help="Keep the citation graph directed instead of converting it to undirected.",
-    )
-    parser.add_argument(
         "--output-dir",
         default="artifacts/splits",
         help="Directory where the split artifact is stored.",
@@ -48,7 +43,6 @@ def main() -> None:
 
     graph = load_citation_graph(
         args.dataset,
-        undirected=not args.directed,
     )
     split = create_link_prediction_split(
         graph,

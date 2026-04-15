@@ -21,7 +21,7 @@ from tests.support import (
 
 class SmokeCliTests(unittest.TestCase):
     def test_smoke_main_prints_json_summary_from_pipeline_outputs(self) -> None:
-        graph = make_graph_data(is_directed=False)
+        graph = make_graph_data()
         split = make_link_prediction_split()
         fake_artifact = Path("artifacts/splits/cora_seed42_lp.pt")
 

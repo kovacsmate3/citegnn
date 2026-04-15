@@ -26,13 +26,11 @@ class HeuristicHelperTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "shape \\[2, num_edges\\]"):
             heuristics._edge_columns(torch.tensor([0, 1], dtype=torch.long))
 
-    def test_build_scoring_graph_preserves_directionality_and_node_count(self) -> None:
-        undirected_graph = heuristics._build_scoring_graph(make_link_prediction_split(is_undirected=True))
-        directed_graph = heuristics._build_scoring_graph(make_link_prediction_split(is_undirected=False))
+    def test_build_scoring_graph_returns_undirected_graph_with_expected_node_count(self) -> None:
+        graph = heuristics._build_scoring_graph(make_link_prediction_split())
 
-        self.assertEqual(undirected_graph.number_of_nodes(), 6)
-        self.assertFalse(undirected_graph.is_directed())
-        self.assertTrue(directed_graph.is_directed())
+        self.assertEqual(graph.number_of_nodes(), 6)
+        self.assertFalse(graph.is_directed())
 
     def test_known_common_neighbor_and_adamic_adar_scores_rank_positive_edge_higher(self) -> None:
         graph = heuristics._build_scoring_graph(make_link_prediction_split())
