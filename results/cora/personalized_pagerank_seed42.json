@@ -3,7 +3,6 @@
   "method": "personalized_pagerank",
   "params": {
     "alpha": 0.85,
-    "is_undirected": true,
     "split_seed": 42,
     "train_graph_edges": 7392
   },

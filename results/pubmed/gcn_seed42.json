@@ -2,15 +2,14 @@
   "dataset": "PubMed",
   "method": "gcn",
   "params": {
-    "best_epoch": 5,
-    "decoder_hidden_dim": 32,
+    "best_epoch": 17,
+    "decoder_hidden_dim": 64,
     "dropout": 0.2,
-    "epochs": 5,
-    "hidden_dim": 32,
-    "is_undirected": true,
+    "epochs": 50,
+    "hidden_dim": 64,
     "learning_rate": 0.01,
     "num_layers": 2,
-    "patience": 3,
+    "patience": 10,
     "split_seed": 42,
     "train_graph_edges": 62056,
     "train_supervision_edges": 62056,
@@ -18,21 +17,21 @@
   },
   "seed": 42,
   "test": {
-    "average_precision": 0.8389725150378946,
-    "f1": 0.8147067699426617,
-    "positive_rate": 0.6215027075812274,
-    "precision": 0.7350698856416773,
-    "recall": 0.9136958483754513,
-    "roc_auc": 0.8678184429432646,
-    "threshold": 0.49779012799263
+    "average_precision": 0.8472678024971152,
+    "f1": 0.8150479768492663,
+    "positive_rate": 0.611067238267148,
+    "precision": 0.7409766454352441,
+    "recall": 0.9055731046931408,
+    "roc_auc": 0.8736171399503447,
+    "threshold": 0.5318590998649597
   },
   "validation": {
-    "average_precision": 0.8516542659663683,
-    "f1": 0.8245773863751392,
-    "positive_rate": 0.6145081227436823,
-    "precision": 0.7477510556269507,
-    "recall": 0.9189981949458483,
-    "roc_auc": 0.8779412567282253,
-    "threshold": 0.49779012799263
+    "average_precision": 0.8584245380910855,
+    "f1": 0.8233966136480246,
+    "positive_rate": 0.5993907942238267,
+    "precision": 0.7551289290419725,
+    "recall": 0.9052346570397112,
+    "roc_auc": 0.8831826643935148,
+    "threshold": 0.5318590998649597
   }
 }

@@ -1,28 +1,27 @@
 {
   "dataset": "Cora",
-  "method": "common_neighbors",
+  "method": "adamic_adar",
   "params": {
-    "is_undirected": true,
     "split_seed": 42,
     "train_graph_edges": 7392
   },
   "seed": 42,
   "test": {
-    "average_precision": 0.6708839892849784,
+    "average_precision": 0.6705307285189042,
     "f1": 0.6666666666666666,
     "positive_rate": 1.0,
     "precision": 0.5,
     "recall": 1.0,
-    "roc_auc": 0.6716893151546461,
+    "roc_auc": 0.6716381033669504,
     "threshold": 0.0
   },
   "validation": {
-    "average_precision": 0.6606916356330353,
+    "average_precision": 0.6695342027783627,
     "f1": 0.6666666666666666,
     "positive_rate": 1.0,
     "precision": 0.5,
     "recall": 1.0,
-    "roc_auc": 0.6646155064829383,
+    "roc_auc": 0.6660665612881621,
     "threshold": 0.0
   }
 }

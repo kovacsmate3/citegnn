@@ -2,12 +2,11 @@
   "dataset": "Cora",
   "method": "node2vec",
   "params": {
-    "batch_size": 256,
+    "batch_size": 512,
     "classifier_c": 1.0,
     "context_window": 5,
-    "embedding_dim": 16,
-    "epochs": 1,
-    "is_undirected": true,
+    "embedding_dim": 64,
+    "epochs": 3,
     "learning_rate": 0.025,
     "negative_samples": 5,
     "p": 1.0,
@@ -15,26 +14,26 @@
     "split_seed": 42,
     "train_graph_edges": 7392,
     "train_supervision_edges": 7392,
-    "walk_length": 10,
-    "walks_per_node": 2
+    "walk_length": 20,
+    "walks_per_node": 10
   },
   "seed": 42,
   "test": {
-    "average_precision": 0.770419475284172,
-    "f1": 0.6920678905438171,
-    "positive_rate": 0.8682464454976303,
-    "precision": 0.5453056768558951,
-    "recall": 0.9469194312796209,
-    "roc_auc": 0.7328361896633049,
-    "threshold": 0.018697758449126696
+    "average_precision": 0.695194422523081,
+    "f1": 0.691348696637703,
+    "positive_rate": 0.7545023696682465,
+    "precision": 0.574748743718593,
+    "recall": 0.8672985781990521,
+    "roc_auc": 0.6874095370723928,
+    "threshold": 0.17064076768712572
   },
   "validation": {
-    "average_precision": 0.7773004862660032,
-    "f1": 0.6952315134761575,
-    "positive_rate": 0.872865275142315,
-    "precision": 0.5467391304347826,
-    "recall": 0.9544592030360531,
-    "roc_auc": 0.7349862635878861,
-    "threshold": 0.018697758449126696
+    "average_precision": 0.697230527415703,
+    "f1": 0.702865761689291,
+    "positive_rate": 0.7580645161290323,
+    "precision": 0.5832290362953693,
+    "recall": 0.8842504743833017,
+    "roc_auc": 0.6857224128556975,
+    "threshold": 0.17064076768712572
   }
 }

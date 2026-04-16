@@ -1,0 +1,39 @@
+{
+  "dataset": "PubMed",
+  "method": "node2vec",
+  "params": {
+    "batch_size": 512,
+    "classifier_c": 1.0,
+    "context_window": 5,
+    "embedding_dim": 64,
+    "epochs": 3,
+    "learning_rate": 0.025,
+    "negative_samples": 5,
+    "p": 1.0,
+    "q": 1.0,
+    "split_seed": 42,
+    "train_graph_edges": 62056,
+    "train_supervision_edges": 62056,
+    "walk_length": 20,
+    "walks_per_node": 10
+  },
+  "seed": 42,
+  "test": {
+    "average_precision": 0.5514022573840432,
+    "f1": 0.6985260152017806,
+    "positive_rate": 0.8432423285198556,
+    "precision": 0.5563582848351061,
+    "recall": 0.9382897111913358,
+    "roc_auc": 0.6095650331646119,
+    "threshold": 0.25253877429793975
+  },
+  "validation": {
+    "average_precision": 0.5577046078526496,
+    "f1": 0.7044035768516956,
+    "positive_rate": 0.8373194945848376,
+    "precision": 0.5625168418216114,
+    "recall": 0.9420126353790613,
+    "roc_auc": 0.6183802632479246,
+    "threshold": 0.25253877429793975
+  }
+}
