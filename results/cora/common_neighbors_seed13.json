@@ -1,0 +1,27 @@
+{
+  "dataset": "Cora",
+  "method": "common_neighbors",
+  "params": {
+    "split_seed": 13,
+    "train_graph_edges": 7392
+  },
+  "seed": 13,
+  "test": {
+    "average_precision": 0.6598044073272639,
+    "f1": 0.6666666666666666,
+    "positive_rate": 1.0,
+    "precision": 0.5,
+    "recall": 1.0,
+    "roc_auc": 0.6626877204016082,
+    "threshold": 0.0
+  },
+  "validation": {
+    "average_precision": 0.6529360992194979,
+    "f1": 0.6666666666666666,
+    "positive_rate": 1.0,
+    "precision": 0.5,
+    "recall": 1.0,
+    "roc_auc": 0.6558569684836657,
+    "threshold": 0.0
+  }
+}

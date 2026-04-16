@@ -1,0 +1,27 @@
+{
+  "dataset": "Cora",
+  "method": "adamic_adar",
+  "params": {
+    "split_seed": 13,
+    "train_graph_edges": 7392
+  },
+  "seed": 13,
+  "test": {
+    "average_precision": 0.6654049713080329,
+    "f1": 0.6666666666666666,
+    "positive_rate": 1.0,
+    "precision": 0.5,
+    "recall": 1.0,
+    "roc_auc": 0.6635542777565643,
+    "threshold": 0.0
+  },
+  "validation": {
+    "average_precision": 0.6584920938132048,
+    "f1": 0.6666666666666666,
+    "positive_rate": 1.0,
+    "precision": 0.5,
+    "recall": 1.0,
+    "roc_auc": 0.6566617097962403,
+    "threshold": 0.0
+  }
+}

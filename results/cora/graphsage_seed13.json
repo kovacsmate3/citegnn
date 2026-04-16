@@ -1,0 +1,37 @@
+{
+  "dataset": "Cora",
+  "method": "graphsage",
+  "params": {
+    "best_epoch": 6,
+    "decoder_hidden_dim": 64,
+    "dropout": 0.2,
+    "epochs": 50,
+    "hidden_dim": 64,
+    "learning_rate": 0.01,
+    "num_layers": 2,
+    "patience": 10,
+    "split_seed": 13,
+    "train_graph_edges": 7392,
+    "train_supervision_edges": 7392,
+    "weight_decay": 0.0005
+  },
+  "seed": 13,
+  "test": {
+    "average_precision": 0.5434387832505004,
+    "f1": 0.6662452591656132,
+    "positive_rate": 0.999526066350711,
+    "precision": 0.4997629208155524,
+    "recall": 0.9990521327014218,
+    "roc_auc": 0.5175557602030503,
+    "threshold": 0.5011770725250244
+  },
+  "validation": {
+    "average_precision": 0.6012554696558137,
+    "f1": 0.6666666666666666,
+    "positive_rate": 1.0,
+    "precision": 0.5,
+    "recall": 1.0,
+    "roc_auc": 0.5661814214576081,
+    "threshold": 0.5011770725250244
+  }
+}
