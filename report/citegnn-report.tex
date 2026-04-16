@@ -11,12 +11,10 @@
 \usepackage{multirow}
 \usepackage{amsmath}
 \usepackage{enumitem}
-
 \usepackage{tabularx}
 \usepackage{array}
 
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
-\newcolumntype{T}{>{\ttfamily\raggedright\arraybackslash\hspace{0pt}}p{4.2cm}}
 
 \geometry{margin=2.0cm}
 \setlist{leftmargin=*, topsep=2pt, itemsep=1pt, parsep=0pt}
@@ -28,34 +26,33 @@
     linkcolor=black,
     urlcolor=black,
     citecolor=black,
-    pdftitle={CiteGNN Midterm Report},
+    pdftitle={CiteGNN Report},
 }
 
-\title{\textbf{CiteGNN Midterm Report}\\\large Baselines and First Ablations for Citation Link Prediction}
+\title{\textbf{CiteGNN Report}\\\large Reassessing Baselines for Citation Link Prediction}
 \author{
 S\'andor Baranyi \and M\'at\'e Kov\'acs \and Adorj\'an Nagy-Mohos \and Bal\'azs Bord\'acs
 }
-\date{\vspace{-0.5em}April 10, 2026}
+\date{\vspace{-0.5em}April 16, 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-This midterm report summarizes the Week 9 state of the CiteGNN project. We now have a reproducible link-prediction pipeline for the Cora and PubMed citation benchmarks, shared evaluation utilities, and baseline results for classical heuristics, node2vec, and two GNN encoders. All compared methods use the same fixed undirected split artifacts, validation-threshold selection, and JSON result schema. The strongest method depends on the dataset: Personalized PageRank is best on Cora with test ROC-AUC $0.7942$, while GCN is best on PubMed with test ROC-AUC $0.8727$. Our first defendable ablations are structure-oriented comparisons within the current undirected protocol; the originally proposed directionality lever remains blocked because the present Planetoid loading route exposes symmetric graphs for both datasets.
+We reevaluate the current CiteGNN baseline suite on fixed link-prediction splits for Cora and PubMed. The updated result is unambiguous: a feature-only pairwise MLP is the strongest method on both datasets, reaching test ROC-AUC/AP of $0.8224/0.8343$ on Cora and $0.9349/0.9332$ on PubMed. It outperforms the best structure-only baseline, Personalized PageRank, and also outperforms both tested GNN encoders, GCN and GraphSAGE. This changes the project narrative. Under the present protocol, explicit endpoint features are more useful than neighborhood aggregation. The report therefore focuses on two questions: what exactly each implemented model is using, and why a model that ignores graph neighborhoods can nevertheless beat topology-aware baselines on citation link prediction.
 \end{abstract}
 
-\section{Midterm Goal and Scope}
-The project goal from the proposal is to compare classical citation-link predictors with simple feature-aware GNN baselines under a reproducible experimental protocol. The Week 9 deliverable requires four pieces: a working data pipeline, baseline results from both classical and GNN families, at least one research lever with two ablations, and a short report covering methods, experiments, and risks.
+\section{Task and Experimental Protocol}
+Our current task is binary link prediction on the Planetoid versions of Cora and PubMed. All methods are evaluated on the same saved split artifacts, generated once with seed $42$ and then reused across the full benchmark suite. The loader normalizes node features, removes self-loops, and converts the graph to an undirected representation before splitting.
 
-This report therefore focuses on what is implemented and measurable now. We do \emph{not} claim a directed-versus-undirected citation result yet, because the current data-loading path returns symmetric graphs for both Cora and PubMed. Instead, we report the completed baseline sweep and the first structure-oriented ablations that are already supported by the saved artifacts and the \texttt{baseline\_ablation\_report.ipynb} notebook.
+We use \texttt{RandomLinkSplit} with validation ratio $0.1$, test ratio $0.2$, and negative sampling ratio $1.0$. Validation and test positives are checked against the training graph and the training supervision set to avoid leakage. The resulting artifacts contain 3696/527/1055 positive train/validation/test edges for Cora and 31{,}028/4432/8864 for PubMed. Each partition is paired with the same number of negatives.
 
-\section{Pipeline and Methods}
-\textbf{Datasets.} We use the Planetoid versions of Cora and PubMed. Cora contains 2708 nodes, 5278 undirected links, and 1433-dimensional bag-of-words features. PubMed contains 19{,}717 nodes, 44{,}324 undirected links, and 500-dimensional TF--IDF-like features.
+All models use the same evaluation rule. Scores on the validation split are used to choose a decision threshold, and the report then presents validation and test metrics computed with that threshold. ROC-AUC and average precision (AP) are the main ranking metrics. F1, precision, recall, and positive prediction rate are useful diagnostics, but the main comparisons in this report are based on ROC-AUC and AP.
 
 \begin{table}[t]
 \centering
 \small
-\caption{Dataset and split summary for the shared undirected Week 9 protocol. Train+/Val+/Test+ denote the number of positive supervision edges in each partition.}
+\caption{Dataset and split summary for the current shared protocol.}
 \label{tab:data-summary}
 \begin{tabular}{@{}lrrrrrr@{}}
 \toprule
@@ -67,118 +64,121 @@ PubMed & 19{,}717 & 44{,}324 & 500 & 31{,}028 & 4432 & 8864 \\
 \end{tabular}
 \end{table}
 
-\textbf{Split protocol.} The shared loader normalizes node features, removes self-loops, and currently converts the graph to the undirected variant used by the baseline sweep. We create one deterministic edge-level split with \texttt{RandomLinkSplit}, seed $42$, validation ratio $0.1$, test ratio $0.2$, and negative sampling ratio $1.0$. Leakage checks ensure that validation and test positive edges do not overlap with the training graph or training supervision edges. The saved Week 9 artifacts contain 3696/527/1055 positive train/validation/test edges for Cora and 31{,}028/4432/8864 for PubMed; each partition is paired with an equal number of negatives.
+\section{Implemented Methods}
+\textbf{Classical heuristics.} Common Neighbors and Adamic--Adar score a candidate edge using only local topology in the train graph. Personalized PageRank (PPR) extends this to longer-range diffusion by computing a source-conditioned random-walk score with restart probability $1-\alpha$ and $\alpha=0.85$ in our runs.
 
-\textbf{Evaluation.} All methods share the same evaluation layer. We select a decision threshold on the validation split, then report ROC-AUC, average precision (AP), and F1 on the held-out test split. ROC-AUC and AP are the main metrics in the tables below because they are less sensitive than raw accuracy to the sampled negative set.
+\textbf{node2vec.} The node2vec baseline learns unsupervised node embeddings from random walks on the training graph, then trains a logistic regression classifier on Hadamard-combined endpoint embeddings. This model uses topology only. It does not consume the original node attributes.
 
-\textbf{Baselines.} We evaluate three classical heuristics built only from the training graph: Common Neighbors, Adamic--Adar, and Personalized PageRank with $\alpha=0.85$. For the embedding baseline, node2vec trains 64-dimensional embeddings using walk length $20$, 10 walks per node, context window $5$, 5 negative samples, batch size $512$, learning rate $0.025$, and 3 epochs; a logistic regression classifier scores Hadamard-combined edge features. For GNNs, we use GCN and GraphSAGE encoders with two message-passing layers, hidden size $64$, dropout $0.2$, a Hadamard-product MLP decoder of hidden size $64$, learning rate $0.01$, weight decay $5\times10^{-4}$, up to 50 epochs, and early stopping patience $10$.
+\textbf{Feature-only MLP.} The feature-only baseline never performs message passing. For each candidate edge $(u,v)$ it constructs a pairwise representation directly from node attributes:
+\[
+\phi(u,v)=\big[x_u \odot x_v \;\Vert\; |x_u-x_v|\big].
+\]
+This representation is passed to a two-layer MLP with one hidden layer of width $256$, ReLU, dropout $0.2$, and a sigmoid output. The important point is conceptual rather than architectural: the model sees only the endpoint feature vectors. It does not aggregate over neighbors, diffuse over the graph, or learn node embeddings from walks.
 
-\subsection*{Implementation Status}
-The Week 9 milestone is backed by concrete repository artifacts rather than by report-only claims. The project already includes deterministic split generation, reusable evaluation utilities, individual CLI entry points for each baseline family, and a shared result schema that writes JSON outputs to the \texttt{results/} directory. The notebook \texttt{baseline\_ablation\_report.ipynb} then aggregates these saved outputs into presentation-ready tables and plots. This separation between training scripts, persisted artifacts, and report generation is important for reproducibility because it lets us regenerate results without rewriting the analysis narrative each time.
+\textbf{GCN and GraphSAGE.} Both GNN baselines use two message-passing layers with hidden dimension $64$, dropout $0.2$, and the same Hadamard-product MLP decoder. They first encode nodes from the train graph, then score candidate edges from the learned node representations. Compared with the feature-only MLP, these models insert a graph aggregation stage between the raw attributes and the edge scorer.
 
-\subsection*{Artifact Traceability}
-The saved result files use a stable naming pattern, for example \texttt{results/cora/gcn\_undirected\_seed42.json}. Each JSON artifact stores the dataset name, method, seed, method-specific hyperparameters, validation metrics, and test metrics in the same schema. For the current midterm sweep this produces 12 directly comparable result files: 6 methods on Cora and the same 6 methods on PubMed. This is useful not only for plotting, but also for checking whether the report text is still aligned with the latest saved experiments.
+This distinction matters because the comparison is not simply ``neural versus non-neural.'' It is really a comparison between different sources of signal:
+\begin{itemize}
+    \item structure-only scoring from the train graph,
+    \item feature-only scoring from endpoint attributes,
+    \item and feature-plus-structure scoring through message passing.
+\end{itemize}
 
-\begin{table}[t]
-\centering
-\footnotesize
-\caption{Local notebooks used to inspect, rerun, and summarize the Week 9 pipeline.}
-\label{tab:notebooks}
-\renewcommand{\arraystretch}{1.08}
-\begin{tabularx}{\linewidth}{@{}TY@{}}
-\toprule
-\textbf{Notebook} & \textbf{Role in the workflow} \\
-\midrule
-data\_pipeline\_demo & Demonstrates dataset loading, split creation, artifact saving, and tensor inspection for the shared link-prediction protocol. \\
-heuristic\_baselines\_demo & Shows how the train-only heuristic scorers are evaluated on a saved split artifact through the shared result schema. \\
-node2vec\_baseline\_demo & Demonstrates the CPU-friendly node2vec training loop and the downstream logistic edge classifier on the common split. \\
-gnn\_baselines\_demo & Runs the shared full-batch GNN pipeline for both GCN and GraphSAGE with the same decoder and evaluator. \\
-results\_diagnostics\_dashboard & Reuses the plotting helpers to inspect coverage, ranking consistency, and optimization behavior across the saved result files. \\
-\bottomrule
-\end{tabularx}
-\renewcommand{\arraystretch}{1}
-\end{table}
-
-\section{Experiments and Results}
-The midterm sweep runs all baselines on the shared undirected split for both datasets. Table~\ref{tab:main-results} reports the saved test results for seed $42$.
+\section{Results}
+Table~\ref{tab:main-results} reports the current saved test results for all methods. The ranking is consistent across both datasets: the feature-only MLP is best, PPR is the strongest classical structural baseline, GCN is competitive on PubMed but clearly behind the feature-only model, and GraphSAGE is not competitive under the present setup.
 
 \begin{table}[t]
 \centering
 \small
-\caption{Week 9 baseline results on the shared undirected split (seed $42$). Bold marks the best score in each dataset/metric column.}
+\caption{Test results on the shared split artifacts (seed $42$). Bold marks the best result for each dataset/metric column.}
 \label{tab:main-results}
 \begin{tabular}{@{}llcc@{}}
 \toprule
 \textbf{Dataset} & \textbf{Method} & \textbf{Test ROC-AUC} & \textbf{Test AP} \\
 \midrule
-\multirow{6}{*}{Cora}
- & Personalized PageRank & \textbf{0.7942} & \textbf{0.8628} \\
- & node2vec & 0.7018 & 0.7183 \\
+\multirow{7}{*}{Cora}
+ & Feature-only MLP & \textbf{0.8224} & 0.8343 \\
+ & Personalized PageRank & 0.7942 & \textbf{0.8628} \\
+ & node2vec & 0.6874 & 0.6952 \\
  & GCN & 0.6737 & 0.6992 \\
  & Common Neighbors & 0.6717 & 0.6709 \\
  & Adamic--Adar & 0.6716 & 0.6705 \\
- & GraphSAGE & 0.5397 & 0.5505 \\
+ & GraphSAGE & 0.5398 & 0.5505 \\
 \midrule
-\multirow{6}{*}{PubMed}
- & GCN & \textbf{0.8727} & 0.8468 \\
- & Personalized PageRank & 0.8141 & \textbf{0.8733} \\
- & GraphSAGE & 0.6629 & 0.6763 \\
- & Adamic--Adar & 0.6121 & 0.6124 \\
- & Common Neighbors & 0.6120 & 0.6118 \\
- & node2vec & 0.5832 & 0.5252 \\
+\multirow{7}{*}{PubMed}
+ & Feature-only MLP & \textbf{0.9349} & \textbf{0.9332} \\
+ & GCN & 0.8736 & 0.8473 \\
+ & Personalized PageRank & 0.8137 & 0.8731 \\
+ & GraphSAGE & 0.6649 & 0.6847 \\
+ & Adamic--Adar & 0.6172 & 0.6174 \\
+ & Common Neighbors & 0.6172 & 0.6169 \\
+ & node2vec & 0.6096 & 0.5514 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Two observations matter most for the midterm milestone. First, the pipeline is already strong enough to distinguish method families cleanly under one common protocol. Second, the best model is dataset-dependent: Cora currently rewards structure-only methods, while PubMed benefits much more from feature-aware message passing.
-
-\subsection*{Additional Diagnostics}
-Table~\ref{tab:diagnostics} adds validation ROC-AUC and thresholded test F1 for selected methods. These numbers help separate two kinds of success: ranking quality and binary decision quality after threshold selection. This distinction matters because the same method can achieve a strong AP or ROC-AUC while still behaving quite differently once a validation-tuned threshold is applied.
+Two points stand out. First, the feature-only model is not winning by noise-level margins. On Cora it improves ROC-AUC by about $0.028$ over PPR and by about $0.149$ over GCN. On PubMed the gap is much larger: about $0.061$ over GCN and about $0.121$ over PPR. Second, the advantage is not limited to one metric. On PubMed the feature-only baseline is best on both ROC-AUC and AP. On Cora, PPR still attains the highest AP, but the feature-only model has the best ROC-AUC and remains far ahead of the trainable graph encoders.
 
 \begin{table}[t]
 \centering
 \small
-\caption{Secondary metrics for selected methods. Positive rate is the fraction of test pairs predicted as positive using the validation-tuned threshold.}
+\caption{Diagnostics for the main trainable models. Best epoch comes from validation ROC-AUC. Positive rate is the fraction of test pairs predicted positive at the validation-selected threshold.}
 \label{tab:diagnostics}
 \begin{tabular}{@{}llccc@{}}
 \toprule
-\textbf{Dataset} & \textbf{Method} & \textbf{Val. ROC-AUC} & \textbf{Test F1} & \textbf{Positive Rate} \\
+\textbf{Dataset} & \textbf{Method} & \textbf{Best Epoch} & \textbf{Val. ROC-AUC} & \textbf{Test Positive Rate} \\
 \midrule
-Cora & Personalized PageRank & 0.7946 & 0.7681 & 0.3910 \\
-Cora & node2vec & 0.6845 & 0.6915 & 0.7445 \\
-Cora & GCN & 0.6796 & 0.6714 & 0.9047 \\
-PubMed & GCN & 0.8823 & 0.8154 & 0.6062 \\
-PubMed & Personalized PageRank & 0.8187 & 0.7555 & 0.5388 \\
-PubMed & GraphSAGE & 0.6627 & 0.6758 & 0.9462 \\
+Cora & Feature-only MLP & 99 & 0.8212 & 0.5355 \\
+Cora & GCN & 2 & 0.6796 & 0.9047 \\
+Cora & GraphSAGE & 2 & 0.5213 & 0.9995 \\
+\midrule
+PubMed & Feature-only MLP & 100 & 0.9376 & 0.5402 \\
+PubMed & GCN & 17 & 0.8832 & 0.6111 \\
+PubMed & GraphSAGE & 50 & 0.6619 & 0.9087 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-On Cora, the ranking is consistent across metrics: Personalized PageRank is clearly strongest, node2vec is the best trainable non-GNN baseline, and both GNNs lag behind the structure-only alternatives. The gap between node2vec and GCN is modest in ROC-AUC, but the broader picture is stable: citation structure alone carries a large share of the predictive signal on this smaller benchmark. In practical terms, that means the midterm story for Cora is not ``GCNs already win,'' but rather that a carefully implemented classical baseline remains hard to beat.
+The diagnostics in Table~\ref{tab:diagnostics} help explain the quality differences. The feature-only MLP keeps improving until the end of the allowed training budget on both datasets and produces balanced positive rates near $0.54$. The GNN baselines behave less stably. On Cora, both GCN and GraphSAGE peak at epoch $2$, suggesting that message passing is not adding a robust signal under the present configuration. GraphSAGE is especially unstable: its thresholded predictions are almost all positive on Cora and overwhelmingly positive on PubMed, which is consistent with a weak ranking function rather than a merely miscalibrated threshold.
 
-PubMed tells a more mixed story. GCN achieves the best ROC-AUC and the best F1, but Personalized PageRank reaches the best AP. This suggests that GCN provides the best overall separation between positives and negatives across the score range, while Personalized PageRank still concentrates probability mass effectively near the top-ranked candidate edges. That trade-off is useful for the final project because it means we should keep both neural and non-neural structure-aware baselines in the comparison instead of collapsing the narrative into a single winner.
+\section{Why Does the Feature-Only MLP Win?}
+At first glance the result looks counterintuitive. Citation link prediction seems like a graph task, so one might expect graph-aware models to dominate. Under this protocol, however, the feature-only MLP has several structural advantages.
 
-\section{First Research Lever and Ablations}
-Our proposal named directionality as the primary lever, but the current loader does not yet expose a genuinely directed citation graph. The notebook check shows that both datasets arrive as non-directed in the present Planetoid path, so a fair directed-versus-symmetrized ablation would be misleading at this point. To satisfy the midterm requirement honestly, we report the two structure-oriented ablations that the available results \emph{do} support.
+\subsection*{1. The node features already encode a great deal of the link signal}
+Cora and PubMed are not feature-poor graphs. Cora provides 1433-dimensional sparse bag-of-words features, and PubMed provides 500-dimensional TF--IDF-like features. In citation networks, linked papers tend to discuss related topics, use similar vocabulary, and therefore have strongly aligned feature vectors. The feature-only baseline is designed to exploit exactly this.
 
-\textbf{Ablation 1: local versus longer-range structural scoring.} Common Neighbors and Adamic--Adar only use immediate shared-neighborhood information, while Personalized PageRank diffuses information over longer random-walk paths. Personalized PageRank is substantially better on both datasets: on Cora it improves ROC-AUC by about $0.123$ over either local heuristic, and on PubMed the gain is about $0.202$. This suggests that citation link prediction in our current setup benefits from broader structural context, not just triangle closure.
+Its pairwise representation combines elementwise agreement ($x_u \odot x_v$) with absolute mismatch ($|x_u-x_v|$). This is a strong inductive bias for similarity-based link prediction. If two papers are topically similar, the MLP can learn that directly from the endpoints without having to infer similarity indirectly through neighborhood aggregation.
 
-\textbf{Ablation 2: structure-only baselines versus feature-aware GNNs.} The comparison changes by dataset. On Cora, structure-only methods remain the strongest: Personalized PageRank reaches ROC-AUC $0.7942$, far ahead of GCN at $0.6737$, and node2vec also stays above the GNNs. On PubMed, however, GCN reaches the best ROC-AUC at $0.8727$, beating Personalized PageRank by roughly $0.059$ and node2vec by almost $0.290$. The likely explanation is that PubMed's richer node attributes give the GCN a stronger signal to aggregate, whereas Cora's smaller, strongly homophilous graph already exposes much of the link signal through topology alone.
-\newpage
-GraphSAGE is not yet competitive in either setting. Even with the updated 50-epoch budget, it reaches only $0.5397$ ROC-AUC on Cora and $0.6629$ on PubMed. This is weaker than the other baselines, but it is still informative. On Cora the best validation checkpoint appears extremely early, which suggests that the current setup is not extracting much value from continued training. On PubMed the best checkpoint reaches the end of the 50-epoch budget, yet the final quality is still far below GCN. That pattern makes GraphSAGE a concrete target for later ablation work: the problem is no longer just ``we forgot to train it,'' but that the current encoder-decoder combination is a poor fit under this protocol.
+\subsection*{2. The GNNs may over-smooth or wash out endpoint-specific evidence}
+Both tested GNNs replace raw node features with neighborhood-aggregated embeddings before edge scoring. That can help when local graph context adds information that the endpoints themselves do not contain. But it can also hurt. In citation graphs, aggregation blends each paper with its neighbors, which may dilute the fine-grained endpoint differences that actually matter for deciding whether a specific pair should be linked.
 
-\section{Risks and Next Steps}
+The result pattern is consistent with this interpretation. The feature-only model, which preserves raw endpoint information all the way to the classifier, is stronger than both GNNs on both datasets. The effect is particularly strong on PubMed, where the attributes are already highly informative and the MLP can exploit them without structural smoothing.
+
+\subsection*{3. The trainable graph baselines are comparatively constrained}
+The feature-only model is effectively solving a supervised pair classification problem with a large hidden layer and a high-dimensional input. By contrast, the GNNs first compress each node into a 64-dimensional embedding, then score edges through a separate Hadamard MLP. That bottleneck may be too restrictive relative to the richness of the raw feature space, especially on Cora where the pairwise input dimension for the feature-only model is $2 \times 1433 = 2866$.
+
+This is not an argument that GNNs are weak in general. It is an argument that the current GNN instantiation is relatively small, shallow, and lossy compared with the direct supervised feature baseline.
+
+\subsection*{4. The split protocol favors endpoint evidence over global reasoning}
+All methods are evaluated on a fixed undirected split with matched negative sampling. Under this setting, many positive edges may be recoverable from strong topical compatibility alone. A feature-only classifier is well matched to that regime. In contrast, methods whose main strength is longer-range structural reasoning, such as PPR or message passing, only gain an advantage if the graph contributes predictive information beyond what the endpoint attributes already provide.
+
+The current results suggest that this extra graph information exists, but not enough to overcome the quality of direct endpoint-feature scoring. PPR remains the best pure structure baseline, which tells us the graph is useful. It just is not the dominant signal once the node attributes are brought in explicitly.
+
+\section{What the Result Does and Does Not Mean}
+The main conclusion is narrow but solid: on the current saved Cora and PubMed artifacts, the strongest implemented baseline is the feature-only pairwise MLP. This does \emph{not} mean that graph structure is irrelevant, nor that GNNs are a bad fit for citation link prediction in general.
+
+What it does mean is that our current benchmark is answering a different question from the one we may originally have expected. Right now the benchmark mostly asks: given normalized endpoint features and an undirected edge split, how much extra value does structural modeling add beyond direct feature comparison? The answer, for the present implementations, is ``not enough.''
+
+That interpretation implies useful next steps:
 \begin{itemize}
-    \item \textbf{Blocked primary lever:} The proposal's directionality experiment is currently blocked at the data layer. We need a loader path that reconstructs truly directed citation edges before claiming any result about asymmetry.
-    \item \textbf{Single-seed evidence:} All reported numbers come from seed $42$. Multi-seed runs are needed before the final report to separate real effects from split variance.
-    \item \textbf{Protocol alignment:} The current split generator preserves the Planetoid masks and applies edge-level splitting, but the final write-up should still check this protocol carefully against the cited literature.
-    \item \textbf{GAT baseline:} We will add Graph Attention Networks (GAT) as an additional GNN baseline and compare it directly with GCN and GraphSAGE under the same evaluation protocol.
-    \item \textbf{Open ablations:} Structural or positional augmentations proposed for later weeks are not yet implemented, so the current report should be read as a baseline-plus-first-ablation milestone rather than the final research story.
+    \item add multi-seed runs before drawing stronger comparative conclusions,
+    \item test stronger graph encoders or decoders rather than treating the current GCN/GraphSAGE results as definitive,
+    \item and design ablations that isolate when structure helps after controlling for strong endpoint features.
 \end{itemize}
 
-These risks are tightly connected. If the loader remains symmetric, then the proposal's main research question stays unresolved. If we keep a single seed, then even well-designed ablations will remain vulnerable to split-specific variance. And if structural or positional augmentation is delayed for too long, the final report will end up as a baseline study rather than the broader comparison that we proposed. The next sprint is therefore clear: unlock a directed citation loader, introduce GAT alongside the current GCN and GraphSAGE baselines, add one lightweight structural or positional augmentation on top of the strongest current models, and rerun the benchmark across multiple seeds.
+In particular, the feature-only model should no longer be treated as a side baseline. It is now the reference point that future graph-aware models must beat. Any later architectural claim needs to justify itself against this much stronger non-message-passing baseline, not just against heuristics or node2vec.
 
 \section{Conclusion}
-By Week 9, CiteGNN had reached a defendable midterm state: the data pipeline is working, the shared evaluation layer is in place, and the project now has classical and GNN baselines on both Cora and PubMed under one common undirected protocol. The current evidence says that no single model family dominates all citation graphs. Structure-only propagation is strongest on Cora, whereas GCN is strongest on PubMed by ROC-AUC. The most important unresolved issue is not model training, but data representation: until we recover true citation directionality, the main lever from the proposal remains open rather than answered.
+The revised baseline sweep changes the project story in a meaningful way. On both Cora and PubMed, the best implemented model is a feature-only pairwise MLP that ignores graph neighborhoods entirely. PPR remains the strongest topology-only baseline, and GCN is respectable on PubMed, but neither closes the gap to direct endpoint-feature scoring. The most plausible explanation is that the node attributes already encode most of the predictive signal for the current undirected link-prediction protocol, while the tested message-passing models compress or smooth that signal too aggressively. Future work should therefore start from the feature-only baseline as the new standard and ask a sharper question: under what settings does structural modeling add value beyond strong raw endpoint features?
 
 \end{document}
