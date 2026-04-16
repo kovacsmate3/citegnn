@@ -39,11 +39,11 @@ S\'andor Baranyi \and M\'at\'e Kov\'acs \and Adorj\'an Nagy-Mohos \and Bal\'azs 
 \maketitle
 
 \begin{abstract}
-We reevaluate the current CiteGNN baseline suite on fixed link-prediction splits for Cora and PubMed. The updated result is unambiguous: a feature-only pairwise MLP is the strongest method on both datasets, reaching test ROC-AUC/AP of $0.8224/0.8343$ on Cora and $0.9349/0.9332$ on PubMed. It outperforms the best structure-only baseline, Personalized PageRank, and also outperforms both tested GNN encoders, GCN and GraphSAGE. This changes the project narrative. Under the present protocol, explicit endpoint features are more useful than neighborhood aggregation. The report therefore focuses on two questions: what exactly each implemented model is using, and why a model that ignores graph neighborhoods can nevertheless beat topology-aware baselines on citation link prediction.
+We reevaluate the current CiteGNN baseline suite on fixed link-prediction splits for Cora and PubMed. The updated result is unambiguous: a feature-only pairwise MLP is the strongest method on both datasets, reaching test ROC-AUC/AP of $0.8224/0.8343$ on Cora and $0.9349/0.9332$ on PubMed for seed $42$. It outperforms the best structure-only baseline, Personalized PageRank, and also outperforms both tested GNN encoders, GCN and GraphSAGE. We also add a four-seed Cora check over seeds $\{7,13,42,67\}$. That stability check strengthens the main conclusion: the feature-only MLP is the best Cora model by ROC-AUC on every tested seed, while Personalized PageRank remains the best Cora model by AP on every tested seed. Under the present protocol, explicit endpoint features are more useful than neighborhood aggregation. The report therefore focuses on two questions: what exactly each implemented model is using, and why a model that ignores graph neighborhoods can nevertheless beat topology-aware baselines on citation link prediction.
 \end{abstract}
 
 \section{Task and Experimental Protocol}
-Our current task is binary link prediction on the Planetoid versions of Cora and PubMed. All methods are evaluated on the same saved split artifacts, generated once with seed $42$ and then reused across the full benchmark suite. The loader normalizes node features, removes self-loops, and converts the graph to an undirected representation before splitting.
+Our current task is binary link prediction on the Planetoid versions of Cora and PubMed. All methods are evaluated on saved split artifacts generated with \texttt{RandomLinkSplit}. The main cross-dataset comparison in this report uses seed $42$ for both datasets, and we additionally report a Cora-only multi-seed comparison over seeds $7$, $13$, $42$, and $67$. The loader normalizes node features, removes self-loops, and converts the graph to an undirected representation before splitting.
 
 We use \texttt{RandomLinkSplit} with validation ratio $0.1$, test ratio $0.2$, and negative sampling ratio $1.0$. Validation and test positives are checked against the training graph and the training supervision set to avoid leakage. The resulting artifacts contain 3696/527/1055 positive train/validation/test edges for Cora and 31{,}028/4432/8864 for PubMed. Each partition is paired with the same number of negatives.
 
@@ -117,7 +117,31 @@ Table~\ref{tab:main-results} reports the current saved test results for all meth
 \end{tabular}
 \end{table}
 
-Two points stand out. First, the feature-only model is not winning by noise-level margins. On Cora it improves ROC-AUC by about $0.028$ over PPR and by about $0.149$ over GCN. On PubMed the gap is much larger: about $0.061$ over GCN and about $0.121$ over PPR. Second, the advantage is not limited to one metric. On PubMed the feature-only baseline is best on both ROC-AUC and AP. On Cora, PPR still attains the highest AP, but the feature-only model has the best ROC-AUC and remains far ahead of the trainable graph encoders.
+Two points stand out. First, the feature-only model is not winning by noise-level margins. On Cora it improves ROC-AUC by about $0.028$ over PPR and by about $0.149$ over GCN. On PubMed the gap is much larger: about $0.061$ over GCN and about $0.121$ over PPR. Second, the advantage is not limited to one metric family. On PubMed the feature-only baseline is best on both ROC-AUC and AP. On Cora, PPR still attains the highest AP, but the feature-only model has the best ROC-AUC and remains far ahead of the trainable graph encoders.
+
+Because single-split results can overstate weak effects, we also checked whether the Cora conclusion survives across multiple seeds. Table~\ref{tab:cora-multiseed} shows that it does. The feature-only MLP is the best Cora model by ROC-AUC on all four tested seeds, while PPR is the best Cora model by AP on all four tested seeds. The exact values move with the split, but the ranking at the top is stable.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Cora multi-seed summary over seeds $7$, $13$, $42$, and $67$. Means and ranges are computed from the saved test results.}
+\label{tab:cora-multiseed}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Method} & \textbf{Mean ROC-AUC} & \textbf{ROC-AUC Range} & \textbf{Mean AP} & \textbf{AP Range} \\
+\midrule
+Feature-only MLP & \textbf{0.8290} & 0.8204--0.8487 & 0.8375 & 0.8280--0.8548 \\
+Personalized PageRank & 0.7885 & 0.7813--0.7944 & \textbf{0.8603} & 0.8563--0.8641 \\
+GCN & 0.6878 & 0.6737--0.7064 & 0.7219 & 0.6992--0.7364 \\
+node2vec & 0.6819 & 0.6610--0.7027 & 0.6866 & 0.6721--0.6996 \\
+Adamic--Adar & 0.6677 & 0.6636--0.6716 & 0.6686 & 0.6654--0.6731 \\
+Common Neighbors & 0.6673 & 0.6627--0.6717 & 0.6655 & 0.6598--0.6709 \\
+GraphSAGE & 0.5298 & 0.5176--0.5436 & 0.5495 & 0.5357--0.5684 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This multi-seed check matters for interpretation. The seed-to-seed spread is real, especially for the trainable models, but it does not overturn the main story. The strongest effect is stable: direct endpoint-feature scoring beats the tested message-passing baselines on Cora even when the split changes. The finer distinction between the weaker methods is less stable and should not be over-interpreted.
 
 \begin{table}[t]
 \centering
@@ -165,13 +189,13 @@ All methods are evaluated on a fixed undirected split with matched negative samp
 The current results suggest that this extra graph information exists, but not enough to overcome the quality of direct endpoint-feature scoring. PPR remains the best pure structure baseline, which tells us the graph is useful. It just is not the dominant signal once the node attributes are brought in explicitly.
 
 \section{What the Result Does and Does Not Mean}
-The main conclusion is narrow but solid: on the current saved Cora and PubMed artifacts, the strongest implemented baseline is the feature-only pairwise MLP. This does \emph{not} mean that graph structure is irrelevant, nor that GNNs are a bad fit for citation link prediction in general.
+The main conclusion is narrow but solid: on the current saved Cora and PubMed artifacts, the strongest implemented baseline is the feature-only pairwise MLP. That statement is now supported not only by the seed-$42$ cross-dataset comparison, but also by a four-seed Cora check. This does \emph{not} mean that graph structure is irrelevant, nor that GNNs are a bad fit for citation link prediction in general.
 
 What it does mean is that our current benchmark is answering a different question from the one we may originally have expected. Right now the benchmark mostly asks: given normalized endpoint features and an undirected edge split, how much extra value does structural modeling add beyond direct feature comparison? The answer, for the present implementations, is ``not enough.''
 
 That interpretation implies useful next steps:
 \begin{itemize}
-    \item add multi-seed runs before drawing stronger comparative conclusions,
+    \item extend the new multi-seed analysis beyond Cora so PubMed and later models are not judged from one split alone,
     \item test stronger graph encoders or decoders rather than treating the current GCN/GraphSAGE results as definitive,
     \item and design ablations that isolate when structure helps after controlling for strong endpoint features.
 \end{itemize}
@@ -179,6 +203,6 @@ That interpretation implies useful next steps:
 In particular, the feature-only model should no longer be treated as a side baseline. It is now the reference point that future graph-aware models must beat. Any later architectural claim needs to justify itself against this much stronger non-message-passing baseline, not just against heuristics or node2vec.
 
 \section{Conclusion}
-The revised baseline sweep changes the project story in a meaningful way. On both Cora and PubMed, the best implemented model is a feature-only pairwise MLP that ignores graph neighborhoods entirely. PPR remains the strongest topology-only baseline, and GCN is respectable on PubMed, but neither closes the gap to direct endpoint-feature scoring. The most plausible explanation is that the node attributes already encode most of the predictive signal for the current undirected link-prediction protocol, while the tested message-passing models compress or smooth that signal too aggressively. Future work should therefore start from the feature-only baseline as the new standard and ask a sharper question: under what settings does structural modeling add value beyond strong raw endpoint features?
+The revised baseline sweep changes the project story in a meaningful way. On both Cora and PubMed, the best implemented model is a feature-only pairwise MLP that ignores graph neighborhoods entirely. PPR remains the strongest topology-only baseline, and GCN is respectable on PubMed, but neither closes the gap to direct endpoint-feature scoring. The new Cora multi-seed results strengthen that claim rather than weakening it: the top-level ranking is stable across four tested seeds, with the feature-only MLP consistently best by ROC-AUC and PPR consistently best by AP. The most plausible explanation is that the node attributes already encode most of the predictive signal for the current undirected link-prediction protocol, while the tested message-passing models compress or smooth that signal too aggressively. Future work should therefore start from the feature-only baseline as the new standard and ask a sharper question: under what settings does structural modeling add value beyond strong raw endpoint features?
 
 \end{document}
