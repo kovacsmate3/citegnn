@@ -40,6 +40,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    no_progress = getattr(args, "no_progress", False)
     split = load_split_artifact(args.split_path)
     config = FeatureOnlyBaselineConfig(
         feature_mode=args.feature_mode,
@@ -50,7 +51,7 @@ def main() -> None:
         epochs=args.epochs,
         patience=args.patience,
         batch_size=args.batch_size,
-        show_progress=not args.no_progress,
+        show_progress=not no_progress,
     )
     result = run_feature_only_baseline(split, config=config, data_root=args.data_root)
     _, summary = save_and_describe_experiment_result(result, output_dir=args.output_dir)
