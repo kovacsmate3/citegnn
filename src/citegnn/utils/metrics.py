@@ -218,20 +218,20 @@ def compute_classification_metrics(
     """Compute ranking and thresholded classification metrics."""
 
     if isinstance(y_true, Tensor) or isinstance(y_score, Tensor):
-        labels = _to_tensor(y_true, dtype=torch.int64)
-        scores = _to_tensor(y_score, dtype=torch.float64).to(device=labels.device)
+        label_tensor = _to_tensor(y_true, dtype=torch.int64)
+        score_tensor = _to_tensor(y_score, dtype=torch.float64).to(device=label_tensor.device)
 
-        if labels.shape != scores.shape:
+        if label_tensor.shape != score_tensor.shape:
             raise ValueError("y_true and y_score must have the same shape")
-        if labels.numel() == 0:
+        if label_tensor.numel() == 0:
             raise ValueError("metric computation requires at least one example")
-        if torch.unique(labels).numel() < 2:
+        if torch.unique(label_tensor).numel() < 2:
             raise ValueError("metric computation requires both positive and negative labels")
 
-        predictions = (scores >= threshold).to(torch.int64)
+        prediction_tensor = (score_tensor >= threshold).to(torch.int64)
         true_positives, predicted_positives, actual_positives = _classification_counts(
-            labels,
-            predictions,
+            label_tensor,
+            prediction_tensor,
         )
         precision = true_positives / predicted_positives if predicted_positives > 0.0 else 0.0
         recall = true_positives / actual_positives if actual_positives > 0.0 else 0.0
@@ -242,13 +242,13 @@ def compute_classification_metrics(
         )
 
         return ClassificationMetrics(
-            roc_auc=_binary_roc_auc_torch(labels, scores),
-            average_precision=_binary_average_precision_torch(labels, scores),
+            roc_auc=_binary_roc_auc_torch(label_tensor, score_tensor),
+            average_precision=_binary_average_precision_torch(label_tensor, score_tensor),
             precision=float(precision),
             recall=float(recall),
             f1=float(f1),
             threshold=float(threshold),
-            positive_rate=float(predictions.to(torch.float64).mean().item()),
+            positive_rate=float(prediction_tensor.to(torch.float64).mean().item()),
         )
 
     labels = _to_numpy(y_true).astype(int)
