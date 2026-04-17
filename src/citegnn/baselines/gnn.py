@@ -41,7 +41,7 @@ class GNNMethod(StrEnum):
 class GNNBaselineConfig:
     """Configuration for the shared GNN link-prediction baselines."""
 
-    hidden_dim: int = 64
+    hidden_dim: int = 128
     num_layers: int = 2
     dropout: float = 0.2
     decoder_hidden_dim: int = 64

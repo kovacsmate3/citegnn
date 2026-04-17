@@ -60,7 +60,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--gnn-hidden-dim",
         type=int,
-        default=64,
+        default=128,
         help="Hidden dimension shared by GCN and GraphSAGE.",
     )
     parser.add_argument(
