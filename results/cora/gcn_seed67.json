@@ -1,0 +1,38 @@
+{
+  "dataset": "Cora",
+  "method": "gcn",
+  "params": {
+    "best_epoch": 63,
+    "decoder_hidden_dim": 64,
+    "device": "cuda",
+    "dropout": 0.2,
+    "epochs": 200,
+    "hidden_dim": 128,
+    "learning_rate": 0.01,
+    "num_layers": 2,
+    "patience": 20,
+    "split_seed": 67,
+    "train_graph_edges": 7392,
+    "train_supervision_edges": 7392,
+    "weight_decay": 0.0005
+  },
+  "seed": 67,
+  "test": {
+    "average_precision": 0.7375127524254161,
+    "f1": 0.656686626746507,
+    "positive_rate": 0.9246445497630332,
+    "precision": 0.5058944131214762,
+    "recall": 0.9355450236966825,
+    "roc_auc": 0.6928200175198221,
+    "threshold": 0.21405792236328125
+  },
+  "validation": {
+    "average_precision": 0.7035444952265756,
+    "f1": 0.6742627345844504,
+    "positive_rate": 0.9155597722960152,
+    "precision": 0.5212435233160622,
+    "recall": 0.9544592030360531,
+    "roc_auc": 0.6605179869585099,
+    "threshold": 0.21405792236328125
+  }
+}

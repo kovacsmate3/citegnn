@@ -19,6 +19,7 @@ ResultRecord = dict[str, Any]
 _METHOD_LABELS = {
     "adamic_adar": "Adamic-Adar",
     "common_neighbors": "Common Neighbors",
+    "feature_only_mlp": "Feature-Only MLP",
     "gcn": "GCN",
     "graphsage": "GraphSAGE",
     "node2vec": "Node2Vec",

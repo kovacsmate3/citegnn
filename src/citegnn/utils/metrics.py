@@ -12,6 +12,7 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
+import torch
 from torch import Tensor
 
 
@@ -52,11 +53,136 @@ def _to_numpy(array: np.ndarray | list[float] | list[int] | Tensor) -> np.ndarra
     return np.ravel(result)
 
 
+def _to_tensor(
+    array: np.ndarray | list[float] | list[int] | Tensor,
+    *,
+    dtype: torch.dtype | None = None,
+) -> Tensor:
+    """Convert common array-like inputs into a one-dimensional Torch tensor."""
+
+    if isinstance(array, Tensor):
+        result = array.detach()
+    elif isinstance(array, np.ndarray):
+        result = torch.from_numpy(array)
+    else:
+        result = torch.as_tensor(array)
+
+    result = torch.ravel(result)
+    if dtype is not None:
+        result = result.to(dtype=dtype)
+    return result
+
+
+def _binary_roc_auc_torch(labels: Tensor, scores: Tensor) -> float:
+    """Compute tie-aware ROC-AUC for binary labels using average ranks."""
+
+    order = torch.argsort(scores, stable=True)
+    sorted_labels = labels[order]
+    sorted_scores = scores[order]
+    positive_count = int(sorted_labels.sum().item())
+    negative_count = int(sorted_labels.numel() - positive_count)
+    if positive_count == 0 or negative_count == 0:
+        raise ValueError("metric computation requires both positive and negative labels")
+
+    ranks = torch.arange(1, sorted_labels.numel() + 1, device=scores.device, dtype=torch.float64)
+    average_ranks = torch.empty_like(ranks)
+    unique_scores, counts = torch.unique_consecutive(sorted_scores, return_counts=True)
+    del unique_scores
+    start = 0
+    for count in counts.tolist():
+        end = start + count
+        average_rank = (ranks[start] + ranks[end - 1]) / 2.0
+        average_ranks[start:end] = average_rank
+        start = end
+
+    positive_rank_sum = average_ranks[sorted_labels.to(torch.bool)].sum()
+    auc = (
+        positive_rank_sum - positive_count * (positive_count + 1) / 2.0
+    ) / (positive_count * negative_count)
+    return float(auc.item())
+
+
+def _binary_average_precision_torch(labels: Tensor, scores: Tensor) -> float:
+    """Compute tie-aware average precision for binary labels."""
+
+    positive_count = int(labels.sum().item())
+    if positive_count == 0:
+        raise ValueError("metric computation requires both positive and negative labels")
+
+    order = torch.argsort(scores, descending=True, stable=True)
+    sorted_labels = labels[order]
+    sorted_scores = scores[order]
+    cumulative_true_positives = torch.cumsum(sorted_labels, dim=0).to(torch.float64)
+    cumulative_false_positives = (
+        torch.cumsum(1 - sorted_labels, dim=0).to(torch.float64)
+    )
+
+    _, counts = torch.unique_consecutive(sorted_scores, return_counts=True)
+    group_last_indices = torch.cumsum(counts, dim=0) - 1
+    true_positives = cumulative_true_positives[group_last_indices]
+    false_positives = cumulative_false_positives[group_last_indices]
+    precision = true_positives / (true_positives + false_positives)
+    recall = true_positives / float(positive_count)
+
+    previous_recall = torch.cat(
+        [torch.zeros(1, device=scores.device, dtype=torch.float64), recall[:-1]]
+    )
+    average_precision = torch.sum((recall - previous_recall) * precision)
+    return float(average_precision.item())
+
+
+def _classification_counts(labels: Tensor, predictions: Tensor) -> tuple[float, float, float]:
+    """Return true positives, predicted positives, and actual positives."""
+
+    labels_bool = labels.to(torch.bool)
+    predictions_bool = predictions.to(torch.bool)
+    true_positives = float((labels_bool & predictions_bool).sum().item())
+    predicted_positives = float(predictions_bool.sum().item())
+    actual_positives = float(labels_bool.sum().item())
+    return true_positives, predicted_positives, actual_positives
+
+
 def choose_best_threshold(
     y_true: np.ndarray | list[int] | Tensor,
     y_score: np.ndarray | list[float] | Tensor,
 ) -> float:
     """Select the score threshold that maximizes F1 on validation data."""
+
+    if isinstance(y_true, Tensor) or isinstance(y_score, Tensor):
+        label_tensor = _to_tensor(y_true, dtype=torch.int64)
+        score_tensor = _to_tensor(y_score, dtype=torch.float64).to(device=label_tensor.device)
+        if label_tensor.shape != score_tensor.shape:
+            raise ValueError("y_true and y_score must have the same shape")
+        if label_tensor.numel() == 0:
+            raise ValueError("threshold selection requires at least one example")
+
+        candidates = torch.unique(score_tensor)
+        if candidates.numel() == 1:
+            return float(candidates[0].item())
+
+        best_threshold = float(candidates[0].item())
+        best_f1 = -1.0
+
+        for threshold in candidates:
+            predictions = (score_tensor >= threshold).to(torch.int64)
+            true_positives, predicted_positives, actual_positives = _classification_counts(
+                label_tensor,
+                predictions,
+            )
+            precision = (
+                true_positives / predicted_positives if predicted_positives > 0.0 else 0.0
+            )
+            recall = true_positives / actual_positives if actual_positives > 0.0 else 0.0
+            score = (
+                2.0 * precision * recall / (precision + recall)
+                if precision + recall > 0.0
+                else 0.0
+            )
+            if score > best_f1:
+                best_f1 = score
+                best_threshold = float(threshold.item())
+
+        return best_threshold
 
     labels = _to_numpy(y_true).astype(int)
     scores = _to_numpy(y_score).astype(float)
@@ -90,6 +216,40 @@ def compute_classification_metrics(
     threshold: float,
 ) -> ClassificationMetrics:
     """Compute ranking and thresholded classification metrics."""
+
+    if isinstance(y_true, Tensor) or isinstance(y_score, Tensor):
+        label_tensor = _to_tensor(y_true, dtype=torch.int64)
+        score_tensor = _to_tensor(y_score, dtype=torch.float64).to(device=label_tensor.device)
+
+        if label_tensor.shape != score_tensor.shape:
+            raise ValueError("y_true and y_score must have the same shape")
+        if label_tensor.numel() == 0:
+            raise ValueError("metric computation requires at least one example")
+        if torch.unique(label_tensor).numel() < 2:
+            raise ValueError("metric computation requires both positive and negative labels")
+
+        prediction_tensor = (score_tensor >= threshold).to(torch.int64)
+        true_positives, predicted_positives, actual_positives = _classification_counts(
+            label_tensor,
+            prediction_tensor,
+        )
+        precision = true_positives / predicted_positives if predicted_positives > 0.0 else 0.0
+        recall = true_positives / actual_positives if actual_positives > 0.0 else 0.0
+        f1 = (
+            2.0 * precision * recall / (precision + recall)
+            if precision + recall > 0.0
+            else 0.0
+        )
+
+        return ClassificationMetrics(
+            roc_auc=_binary_roc_auc_torch(label_tensor, score_tensor),
+            average_precision=_binary_average_precision_torch(label_tensor, score_tensor),
+            precision=float(precision),
+            recall=float(recall),
+            f1=float(f1),
+            threshold=float(threshold),
+            positive_rate=float(prediction_tensor.to(torch.float64).mean().item()),
+        )
 
     labels = _to_numpy(y_true).astype(int)
     scores = _to_numpy(y_score).astype(float)
