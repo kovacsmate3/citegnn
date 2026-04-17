@@ -2,14 +2,15 @@
   "dataset": "Cora",
   "method": "graphsage",
   "params": {
-    "best_epoch": 7,
+    "best_epoch": 2,
     "decoder_hidden_dim": 64,
+    "device": "cuda",
     "dropout": 0.2,
-    "epochs": 50,
-    "hidden_dim": 64,
+    "epochs": 200,
+    "hidden_dim": 128,
     "learning_rate": 0.01,
     "num_layers": 2,
-    "patience": 10,
+    "patience": 20,
     "split_seed": 67,
     "train_graph_edges": 7392,
     "train_supervision_edges": 7392,
@@ -17,21 +18,21 @@
   },
   "seed": 67,
   "test": {
-    "average_precision": 0.5356517509181697,
-    "f1": 0.6662452591656132,
-    "positive_rate": 0.999526066350711,
-    "precision": 0.4997629208155524,
-    "recall": 0.9990521327014218,
-    "roc_auc": 0.5185103658947463,
-    "threshold": 0.49221178889274597
+    "average_precision": 0.5210913172181107,
+    "f1": 0.6643445218492716,
+    "positive_rate": 0.9966824644549763,
+    "precision": 0.4988112220637185,
+    "recall": 0.9943127962085309,
+    "roc_auc": 0.512179870173626,
+    "threshold": 0.5043496489524841
   },
   "validation": {
-    "average_precision": 0.5704091911315776,
+    "average_precision": 0.5498726488426133,
     "f1": 0.6666666666666666,
     "positive_rate": 1.0,
     "precision": 0.5,
     "recall": 1.0,
-    "roc_auc": 0.547992827540516,
-    "threshold": 0.49221178889274597
+    "roc_auc": 0.5297502241393589,
+    "threshold": 0.5043496489524841
   }
 }

@@ -4,12 +4,13 @@
   "params": {
     "best_epoch": 2,
     "decoder_hidden_dim": 64,
+    "device": "cuda",
     "dropout": 0.2,
-    "epochs": 50,
-    "hidden_dim": 64,
+    "epochs": 200,
+    "hidden_dim": 128,
     "learning_rate": 0.01,
     "num_layers": 2,
-    "patience": 10,
+    "patience": 20,
     "split_seed": 42,
     "train_graph_edges": 7392,
     "train_supervision_edges": 7392,
@@ -17,21 +18,21 @@
   },
   "seed": 42,
   "test": {
-    "average_precision": 0.6991619901791091,
-    "f1": 0.6713900134952766,
-    "positive_rate": 0.904739336492891,
-    "precision": 0.5212152959664746,
-    "recall": 0.943127962085308,
-    "roc_auc": 0.6737449742817996,
-    "threshold": 0.5076584219932556
+    "average_precision": 0.6982517136202219,
+    "f1": 0.6698113207547169,
+    "positive_rate": 0.8061611374407583,
+    "precision": 0.5426219870664315,
+    "recall": 0.8748815165876778,
+    "roc_auc": 0.6719071898654567,
+    "threshold": 0.49573034048080444
   },
   "validation": {
-    "average_precision": 0.7164251228730172,
-    "f1": 0.6703071672354949,
-    "positive_rate": 0.889943074003795,
-    "precision": 0.523454157782516,
-    "recall": 0.9316888045540797,
-    "roc_auc": 0.6796319433692557,
-    "threshold": 0.5076584219932556
+    "average_precision": 0.716571318374946,
+    "f1": 0.6711509715994021,
+    "positive_rate": 0.7694497153700189,
+    "precision": 0.5536374845869297,
+    "recall": 0.8519924098671727,
+    "roc_auc": 0.6801000255644891,
+    "threshold": 0.49573034048080444
   }
 }
