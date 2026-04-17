@@ -5,11 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
-from torch.utils.data import DataLoader, TensorDataset
 
 from ..data.loaders import GraphData, load_citation_graph
 from ..data.splits import LinkPredictionSplit
@@ -24,6 +22,12 @@ try:
     from tqdm.auto import tqdm
 except ImportError:  # pragma: no cover
     tqdm = None
+
+
+def _default_device() -> torch.device:
+    """Return CUDA when available, otherwise CPU."""
+
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 @dataclass(slots=True)
@@ -44,6 +48,20 @@ class PairwiseFeatureDataset:
         """Return the dimensionality of one pairwise feature vector."""
 
         return int(self.train_features.size(1))
+
+    def to(self, device: torch.device) -> PairwiseFeatureDataset:
+        """Move every tensor field in the dataset to one device."""
+
+        return PairwiseFeatureDataset(
+            dataset_name=self.dataset_name,
+            feature_mode=self.feature_mode,
+            train_features=self.train_features.to(device),
+            train_labels=self.train_labels.to(device),
+            val_features=self.val_features.to(device),
+            val_labels=self.val_labels.to(device),
+            test_features=self.test_features.to(device),
+            test_labels=self.test_labels.to(device),
+        )
 
 
 @dataclass(slots=True)
@@ -148,8 +166,8 @@ def _labeled_edge_features(
     features = torch.cat([pos_features, neg_features], dim=0)
     labels = torch.cat(
         [
-            torch.ones(pos_features.size(0), dtype=torch.float32),
-            torch.zeros(neg_features.size(0), dtype=torch.float32),
+            torch.ones(pos_features.size(0), dtype=torch.float32, device=pos_features.device),
+            torch.zeros(neg_features.size(0), dtype=torch.float32, device=neg_features.device),
         ]
     )
     return features, labels
@@ -193,14 +211,14 @@ def build_pairwise_feature_dataset(
     )
 
 
-def _predict_scores(model: _PairwiseMLP, features: Tensor, labels: Tensor) -> tuple[np.ndarray, np.ndarray]:
-    """Run one scoring pass and return numpy labels plus probabilities."""
+def _predict_scores(model: _PairwiseMLP, features: Tensor, labels: Tensor) -> tuple[Tensor, Tensor]:
+    """Run one scoring pass and keep labels plus probabilities on the active device."""
 
     model.eval()
     with torch.no_grad():
         logits = model(features)
-        scores = torch.sigmoid(logits).detach().cpu().numpy()
-    return labels.detach().cpu().numpy().astype(np.int64), scores.astype(np.float64)
+        scores = torch.sigmoid(logits).detach().to(dtype=torch.float64, device=features.device)
+    return labels.detach().to(dtype=torch.int64, device=features.device), scores
 
 
 def run_feature_only_baseline(
@@ -216,28 +234,24 @@ def run_feature_only_baseline(
     resolved_config.validate()
     run_seed = split.seed if seed is None else seed
     seed_everything(run_seed)
+    device = _default_device()
 
     graph = load_citation_graph(split.dataset_name, root=data_root, remove_self_loops=True)
     dataset = build_pairwise_feature_dataset(
         split,
         graph,
         feature_mode=resolved_config.feature_mode,
-    )
+    ).to(device)
 
     model = _PairwiseMLP(
         input_dim=dataset.feature_dim,
         hidden_dim=resolved_config.hidden_dim,
         dropout=resolved_config.dropout,
-    )
+    ).to(device)
     optimizer = torch.optim.Adam(
         model.parameters(),
         lr=resolved_config.learning_rate,
         weight_decay=resolved_config.weight_decay,
-    )
-    train_loader = DataLoader(
-        TensorDataset(dataset.train_features, dataset.train_labels),
-        batch_size=resolved_config.batch_size,
-        shuffle=True,
     )
 
     best_validation = None
@@ -260,7 +274,11 @@ def run_feature_only_baseline(
         model.train()
         epoch_loss = 0.0
         batch_count = 0
-        for batch_features, batch_labels in train_loader:
+        permutation = torch.randperm(dataset.train_features.size(0), device=device)
+        for batch_start in range(0, permutation.size(0), resolved_config.batch_size):
+            batch_indices = permutation[batch_start : batch_start + resolved_config.batch_size]
+            batch_features = dataset.train_features[batch_indices]
+            batch_labels = dataset.train_labels[batch_indices]
             optimizer.zero_grad()
             logits = model(batch_features)
             loss = F.binary_cross_entropy_with_logits(logits, batch_labels)
@@ -305,6 +323,7 @@ def run_feature_only_baseline(
     params: dict[str, Any] = resolved_config.to_dict()
     params.update(
         {
+            "device": str(device),
             "split_seed": int(split.seed),
             "train_supervision_edges": split.train_supervision_edge_count,
             "pairwise_feature_dim": dataset.feature_dim,

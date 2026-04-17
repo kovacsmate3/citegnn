@@ -74,10 +74,10 @@ class GnnHelperTests(unittest.TestCase):
             neg_edge_index=split.val_neg_edge_index,
         )
 
-        np.testing.assert_array_equal(labels, np.asarray([1, 0]))
+        np.testing.assert_array_equal(labels.cpu().numpy(), np.asarray([1, 0]))
         self.assertEqual(scores.shape, (2,))
-        self.assertEqual(scores.dtype, np.float64)
-        self.assertTrue(np.all((scores >= 0.0) & (scores <= 1.0)))
+        self.assertEqual(scores.dtype, torch.float64)
+        self.assertTrue(torch.all((scores >= 0.0) & (scores <= 1.0)).item())
 
 
 class GnnBaselineTests(unittest.TestCase):
@@ -108,6 +108,7 @@ class GnnBaselineTests(unittest.TestCase):
                 self.assertEqual(result.dataset, "Cora")
                 self.assertEqual(result.method, method.value)
                 self.assertEqual(result.seed, 5)
+                self.assertIn("device", result.params)
                 self.assertGreaterEqual(result.params["best_epoch"], 1)
                 self.assertIn("roc_auc", result.validation)
                 self.assertIn("threshold", result.test)

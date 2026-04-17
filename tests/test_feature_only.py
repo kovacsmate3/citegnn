@@ -65,6 +65,7 @@ class FeatureOnlyBaselineTests(unittest.TestCase):
         self.assertEqual(result.dataset, "Cora")
         self.assertEqual(result.method, "feature_only_mlp")
         self.assertEqual(result.seed, 5)
+        self.assertIn("device", result.params)
         self.assertEqual(result.params["feature_mode"], "hadamard_abs_diff")
         self.assertGreaterEqual(result.params["pairwise_feature_dim"], 1)
         self.assertIn("roc_auc", result.validation)

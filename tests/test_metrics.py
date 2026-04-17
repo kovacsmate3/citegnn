@@ -79,6 +79,13 @@ class ThresholdSelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "same shape"):
             choose_best_threshold([0, 1], [0.2])
 
+    def test_choose_best_threshold_supports_torch_tensors(self) -> None:
+        threshold = choose_best_threshold(
+            y_true=torch.tensor([0, 1, 1, 0], dtype=torch.int64),
+            y_score=torch.tensor([0.1, 0.4, 0.9, 0.8], dtype=torch.float32),
+        )
+        self.assertAlmostEqual(threshold, 0.4)
+
 
 class ClassificationMetricTests(unittest.TestCase):
     def test_compute_classification_metrics_returns_expected_fields(self) -> None:
@@ -106,6 +113,19 @@ class ClassificationMetricTests(unittest.TestCase):
     def test_compute_classification_metrics_requires_both_classes(self) -> None:
         with self.assertRaisesRegex(ValueError, "both positive and negative"):
             compute_classification_metrics([1, 1], [0.8, 0.9], threshold=0.5)
+
+    def test_compute_classification_metrics_supports_torch_tensors(self) -> None:
+        metrics = compute_classification_metrics(
+            y_true=torch.tensor([0, 1, 1, 0], dtype=torch.int64),
+            y_score=torch.tensor([0.1, 0.9, 0.8, 0.2], dtype=torch.float32),
+            threshold=0.5,
+        )
+        self.assertAlmostEqual(metrics.roc_auc, 1.0)
+        self.assertAlmostEqual(metrics.average_precision, 1.0)
+        self.assertAlmostEqual(metrics.precision, 1.0)
+        self.assertAlmostEqual(metrics.recall, 1.0)
+        self.assertAlmostEqual(metrics.f1, 1.0)
+        self.assertAlmostEqual(metrics.positive_rate, 0.5)
 
 
 if __name__ == "__main__":
