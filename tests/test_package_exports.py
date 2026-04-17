@@ -4,6 +4,10 @@ import unittest
 
 import citegnn
 from citegnn import baselines, data, utils
+from citegnn.baselines.feature_only import (
+    FeatureOnlyBaselineConfig,
+    run_feature_only_baseline,
+)
 from citegnn.baselines.gnn import GNNBaselineConfig, run_gnn_baseline
 from citegnn.baselines.heuristics import HeuristicMethod
 from citegnn.baselines.node2vec import Node2VecConfig, run_node2vec_baseline
@@ -37,10 +41,13 @@ class PackageExportTests(unittest.TestCase):
         self.assertIs(utils.write_json, write_json)
 
     def test_baselines_package_reexports_public_api(self) -> None:
+        self.assertIn("FeatureOnlyBaselineConfig", baselines.__all__)
         self.assertIn("GNNBaselineConfig", baselines.__all__)
+        self.assertIs(baselines.FeatureOnlyBaselineConfig, FeatureOnlyBaselineConfig)
         self.assertIs(baselines.GNNBaselineConfig, GNNBaselineConfig)
         self.assertIs(baselines.HeuristicMethod, HeuristicMethod)
         self.assertIs(baselines.Node2VecConfig, Node2VecConfig)
+        self.assertIs(baselines.run_feature_only_baseline, run_feature_only_baseline)
         self.assertIs(baselines.run_gnn_baseline, run_gnn_baseline)
         self.assertIs(baselines.run_node2vec_baseline, run_node2vec_baseline)
 

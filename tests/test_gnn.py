@@ -58,7 +58,7 @@ class GnnHelperTests(unittest.TestCase):
             _build_model(method="invalid", input_dim=3, config=GNNBaselineConfig())  # type: ignore[arg-type]
 
     def test_predict_scores_returns_numpy_arrays(self) -> None:
-        graph = make_graph_data(is_directed=False)
+        graph = make_graph_data()
         split = make_link_prediction_split()
         model = _build_model(
             method=GNNMethod.GCN,
@@ -74,16 +74,16 @@ class GnnHelperTests(unittest.TestCase):
             neg_edge_index=split.val_neg_edge_index,
         )
 
-        np.testing.assert_array_equal(labels, np.asarray([1, 0]))
+        np.testing.assert_array_equal(labels.cpu().numpy(), np.asarray([1, 0]))
         self.assertEqual(scores.shape, (2,))
-        self.assertEqual(scores.dtype, np.float64)
-        self.assertTrue(np.all((scores >= 0.0) & (scores <= 1.0)))
+        self.assertEqual(scores.dtype, torch.float64)
+        self.assertTrue(torch.all((scores >= 0.0) & (scores <= 1.0)).item())
 
 
 class GnnBaselineTests(unittest.TestCase):
     @patch("citegnn.baselines.gnn.load_citation_graph")
     def test_run_gnn_baseline_smoke_test_for_both_methods(self, load_citation_graph_mock) -> None:
-        load_citation_graph_mock.return_value = make_graph_data(is_directed=False)
+        load_citation_graph_mock.return_value = make_graph_data()
         split = make_link_prediction_split()
         config = GNNBaselineConfig(
             hidden_dim=4,
@@ -108,6 +108,7 @@ class GnnBaselineTests(unittest.TestCase):
                 self.assertEqual(result.dataset, "Cora")
                 self.assertEqual(result.method, method.value)
                 self.assertEqual(result.seed, 5)
+                self.assertIn("device", result.params)
                 self.assertGreaterEqual(result.params["best_epoch"], 1)
                 self.assertIn("roc_auc", result.validation)
                 self.assertIn("threshold", result.test)

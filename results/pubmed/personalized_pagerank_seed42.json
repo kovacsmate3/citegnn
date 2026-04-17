@@ -1,0 +1,28 @@
+{
+  "dataset": "PubMed",
+  "method": "personalized_pagerank",
+  "params": {
+    "alpha": 0.85,
+    "split_seed": 42,
+    "train_graph_edges": 62056
+  },
+  "seed": 42,
+  "test": {
+    "average_precision": 0.8730698507151634,
+    "f1": 0.7648230230616047,
+    "positive_rate": 0.3781024368231047,
+    "precision": 0.8881098015813814,
+    "recall": 0.6715929602888087,
+    "roc_auc": 0.8137046888440158,
+    "threshold": 2.101239127618507e-05
+  },
+  "validation": {
+    "average_precision": 0.8718778718770448,
+    "f1": 0.7648878576952823,
+    "positive_rate": 0.37522563176895307,
+    "precision": 0.892062537582682,
+    "recall": 0.6694494584837545,
+    "roc_auc": 0.8132533616689909,
+    "threshold": 2.101239127618507e-05
+  }
+}

@@ -33,11 +33,10 @@ def _edge_columns(edge_index: Tensor) -> list[tuple[int, int]]:
     return [(int(source), int(target)) for source, target in edge_index.t().tolist()]
 
 
-def _build_scoring_graph(split: LinkPredictionSplit) -> nx.Graph | nx.DiGraph:
+def _build_scoring_graph(split: LinkPredictionSplit) -> nx.Graph:
     """Build the train-only graph used by all heuristic baselines."""
 
-    graph_type = nx.Graph if split.is_undirected else nx.DiGraph
-    graph = graph_type()
+    graph = nx.Graph()
     graph.add_nodes_from(range(int(split.train_mask.numel())))
     graph.add_edges_from(_edge_columns(split.train_graph_edge_index))
     return graph
@@ -61,32 +60,30 @@ def _combine_labeled_edges(
 
 
 def _score_common_neighbors(
-    graph: nx.Graph | nx.DiGraph,
+    graph: nx.Graph,
     edges: Iterable[tuple[int, int]],
 ) -> np.ndarray:
-    undirected_graph = graph.to_undirected(as_view=True)
     scores: list[float] = []
     for source, target in edges:
-        common_count = sum(1 for _ in nx.common_neighbors(undirected_graph, source, target))
+        common_count = sum(1 for _ in nx.common_neighbors(graph, source, target))
         scores.append(float(common_count))
     return np.asarray(scores, dtype=float)
 
 
 def _score_adamic_adar(
-    graph: nx.Graph | nx.DiGraph,
+    graph: nx.Graph,
     edges: Iterable[tuple[int, int]],
 ) -> np.ndarray:
-    undirected_graph = graph.to_undirected(as_view=True)
     edge_list = list(edges)
     scores_by_edge = {
         (int(source), int(target)): float(score)
-        for source, target, score in nx.adamic_adar_index(undirected_graph, edge_list)
+        for source, target, score in nx.adamic_adar_index(graph, edge_list)
     }
     return np.asarray([scores_by_edge[(source, target)] for source, target in edge_list], dtype=float)
 
 
 def _score_personalized_pagerank(
-    graph: nx.Graph | nx.DiGraph,
+    graph: nx.Graph,
     edges: Iterable[tuple[int, int]],
     *,
     alpha: float,
@@ -106,7 +103,7 @@ def _score_personalized_pagerank(
 
 
 def score_edges(
-    graph: nx.Graph | nx.DiGraph,
+    graph: nx.Graph,
     edges: Iterable[tuple[int, int]],
     *,
     method: HeuristicMethod,
@@ -168,7 +165,6 @@ def run_heuristic_baseline(
     )
     params: dict[str, Any] = {
         "split_seed": int(split.seed),
-        "is_undirected": bool(split.is_undirected),
         "train_graph_edges": split.train_graph_edge_count,
     }
     if method == HeuristicMethod.PERSONALIZED_PAGERANK:

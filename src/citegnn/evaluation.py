@@ -95,12 +95,6 @@ def build_experiment_result(
     )
 
 
-def _result_graph_variant_suffix(*, is_undirected: bool) -> str:
-    """Return the suffix needed only for non-default graph variants."""
-
-    return "" if is_undirected else "_directed"
-
-
 def save_experiment_result(
     result: ExperimentResult,
     *,
@@ -108,12 +102,10 @@ def save_experiment_result(
 ) -> Path:
     """Persist one experiment result as JSON."""
 
-    is_undirected = bool(result.params.get("is_undirected", True))
-    variant_suffix = _result_graph_variant_suffix(is_undirected=is_undirected)
     output_path = (
         Path(output_dir)
         / result.dataset.lower()
-        / f"{result.method}{variant_suffix}_seed{result.seed}.json"
+        / f"{result.method}_seed{result.seed}.json"
     )
     return write_json(result.to_dict(), output_path)
 

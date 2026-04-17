@@ -44,8 +44,8 @@ Using benchmark datasets such as Cora and PubMed, we compare classical link pred
 with simple Graph Neural Network (GNN) baselines under a fully reproducible, CPU-friendly setup.
 The project evaluates whether feature-aware message-passing models, specifically GCN and GraphSAGE,
 improve over non-neural approaches such as local link heuristics and node2vec-based edge scoring.
-Our primary research lever is the effect of citation directionality, comparing directed and symmetrized
-graph constructions. As a secondary lever, we investigate whether lightweight structural or positional
+Our primary research lever is whether graph-aware message passing improves over pairwise
+classification based only on node attributes. As a secondary lever, we investigate whether lightweight structural or positional
 augmentations improve prediction quality. The outcome of the project is not architectural novelty,
 but a careful and reproducible comparison of which modeling choices matter most for citation link prediction.
 \end{abstract}
@@ -97,7 +97,7 @@ provide measurable benefits over classical methods on citation network benchmark
 \subsection{Research Questions}
 \begin{itemize}
     \item \textbf{RQ1:} Do feature-aware GNN models outperform classical link prediction baselines on citation graphs?
-    \item \textbf{RQ2:} Does preserving citation directionality improve predictive performance compared to symmetrized graphs?
+    \item \textbf{RQ2:} Does graph-aware message passing improve citation link prediction beyond pairwise classification based only on node attributes?
     \item \textbf{RQ3:} Do lightweight structural or positional augmentations improve the performance of simple GNN baselines?
     \item \textbf{RQ4:} Can all experiments be executed reproducibly on CPU within the project constraints?
 \end{itemize}
@@ -105,7 +105,7 @@ provide measurable benefits over classical methods on citation network benchmark
 \subsection{Hypotheses}
 \begin{itemize}
     \item \textbf{H1:} GCN and GraphSAGE will outperform local heuristic baselines because they combine graph structure with node features.
-    \item \textbf{H2:} Directed modeling will outperform undirected modeling because citation relations are inherently asymmetric.
+    \item \textbf{H2:} GNN-based link predictors will outperform pairwise feature-only classifiers because citation links depend not only on paper content but also on local graph context.
     \item \textbf{H3:} Adding lightweight structural or positional information will improve link prediction over plain message passing.
     \item \textbf{H4:} A controlled experimental pipeline based on Cora and PubMed, together with lightweight baselines and shallow GNN models, will be feasible to run reproducibly on CPU without requiring specialized hardware.
 \end{itemize}
@@ -119,7 +119,7 @@ This project focuses on:
 \item link prediction instead of node classification,
 \item comparison of classical and neural methods,
 \item structural and positional encodings,
-\item directed vs. undirected citation graphs.
+\item feature-only pairwise classification vs.\ graph-aware message passing.
 \end{itemize}
 
 The goal is to analyze how much benefit GNNs provide
@@ -132,7 +132,7 @@ and remain small enough for reproducible CPU-based experiments.
 
 In the default PyTorch Geometric Planetoid representation, citation edges are stored in a symmetrized form,
 so the raw \texttt{edge\_index} contains both directions of an undirected connection.
-For directionality experiments, we plan to reconstruct a directed variant from the original citation relations, subject to data availability in the benchmark source.
+This is suitable for our current setup, where the main comparison is between feature-only pairwise prediction and graph-aware message passing on a shared undirected benchmark.
 
 \begin{table}[h]
 \centering
@@ -288,7 +288,7 @@ not as definitive proof of effectiveness in recommending production-scale citati
 
 Our pipeline consists of four stages:
 \begin{enumerate}
-    \item \textbf{Graph preparation:} load the citation graph and construct both directed and symmetrized variants.
+    \item \textbf{Graph preparation:} load the citation graph and construct a shared undirected benchmark graph.
     \item \textbf{Edge split:} create reproducible train/validation/test splits for link prediction using a fixed random seed.
     \item \textbf{Model training:} train classical baselines and GNN encoders under comparable conditions.
     \item \textbf{Evaluation:} compare methods using classification- and ranking-based metrics on held-out edges.
@@ -328,19 +328,19 @@ The goal of the project is not to propose a new architecture,
 but to determine whether standard feature-aware GNN encoders already provide advantages on citation link prediction compared to structural heuristics.
 
 Both models will first be evaluated in a plain configuration.
-Later, ablations will investigate whether their performance changes under directed graph modeling
+Later, ablations will investigate whether their performance changes relative to feature-only pairwise classifiers
 and under additional structural or positional information.
 
 \section{Research Extensions}
 
 To keep the project focused, we define one primary and one secondary research lever.
 
-\subsection{Primary Lever: Directed vs.\ Undirected Citation Modeling}
-Citation graphs are naturally directional, but many GNN pipelines symmetrize the graph for convenience.
-We will ablate the models against:
+\subsection{Primary Lever: Feature-Only vs.\ Graph-Aware Prediction}
+To isolate the value of message passing, we will compare graph-aware GNN encoders against pairwise classifiers that use only the endpoint node attributes and do not aggregate neighborhood information.
+We will therefore ablate the models against:
 \begin{itemize}
-    \item directed citation modeling,
-    \item symmetrized (undirected) citation modeling.
+    \item pairwise feature-only classification,
+    \item graph-aware message passing with the same node features.
 \end{itemize}
 
 \subsection{Secondary Lever: Structural or Positional Augmentation}
@@ -351,7 +351,7 @@ The exact augmentation will be chosen so that it remains CPU-friendly and easy t
 \subsection{Planned Ablations}
 \begin{itemize}
     \item Plain GNN vs.\ GNN + structural/positional augmentation.
-    \item Directed vs.\ undirected graph construction.
+    \item Pairwise feature-only classifier vs.\ graph-aware GNN.
     \item Shallow vs.\ slightly deeper encoder configuration.
 \end{itemize}
 
@@ -404,7 +404,7 @@ All reported experiments will be designed to run on CPU under the course constra
 6  & Implement data loading, reproducible edge splits, and heuristic baselines. \\
 7  & Implement node2vec baseline and first evaluation pipeline. \\
 8  & Implement GCN and GraphSAGE link prediction baselines. \\
-9  & Run baseline experiments and first ablations on directionality. Submit Midterm Report. \\
+9  & Run baseline experiments and first ablations against the feature-only pairwise classifier. Submit Midterm Report. \\
 10--11 & Add structural/positional augmentation and analyze secondary ablations. \\
 12 & Consolidate results, tables, and reproducibility scripts. \\
 13 & Final report, trained models/demo, and presentation. \\
@@ -419,7 +419,7 @@ All reported experiments will be designed to run on CPU under the course constra
     \item \textbf{Benchmark simplicity:} Cora and PubMed are useful, but small, and may not reflect realistic recommendation settings.
     \item \textbf{Data leakage:} Careless splitting can leak reverse-edge information between partitions.
     \item \textbf{Overfitting:} Small, sparse graphs may favor overly tuned models. We will employ early stopping and regularized, shallow GNNs to mitigate this.
-    \item \textbf{Scope creep:} Too many levers would weaken the experimental focus. We are restricting ourselves to two specific ablations (Directionality and Structural Encodings).
+    \item \textbf{Scope creep:} Too many levers would weaken the experimental focus. We are restricting ourselves to two specific ablations (Feature-Only vs.\ Graph-Aware Prediction and Structural Encodings).
 \end{itemize}
 
 \section{Conclusion}
@@ -431,7 +431,7 @@ between local heuristic methods, embedding-based baselines, and simple Graph Neu
 
 The central research question is whether feature-aware GNN models such as GCN and GraphSAGE
 offer clear advantages over classical approaches for citation link prediction,
-and whether these results depend on modeling choices such as citation directionality
+and whether these results depend on modeling choices such as graph-aware message passing beyond feature-only pairwise prediction
 and lightweight structural or positional augmentation.
 
 By using fixed edge-level splits, CPU-friendly models, and controlled ablations,

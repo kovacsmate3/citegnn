@@ -20,14 +20,13 @@ def _write_result(
     method: str,
     score: float,
     seed: int = 42,
-    is_undirected: bool = True,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "dataset": dataset,
         "method": method,
         "seed": seed,
-        "params": {"is_undirected": is_undirected},
+        "params": {},
         "validation": {"roc_auc": score},
         "test": {
             "roc_auc": score,
@@ -52,7 +51,6 @@ class PlotResultLoadingTests(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["dataset"], "Cora")
         self.assertEqual(records[0]["method"], "GCN")
-        self.assertEqual(records[0]["graph_variant"], "undirected")
         self.assertEqual(records[0]["test_roc_auc"], 0.71)
         self.assertEqual(records[0]["test_average_precision"], 0.61)
         self.assertEqual(Path(records[0]["relative_path"]), Path("cora") / "gcn_seed42.json")
@@ -77,7 +75,7 @@ class PlotResultLoadingTests(unittest.TestCase):
         self.assertEqual(results["Cora"]["GCN"], 0.71)
         self.assertEqual(results["PubMed"]["Node2Vec"], 0.66)
 
-    def test_load_results_prefers_current_undirected_filename_when_duplicates_exist(self) -> None:
+    def test_load_results_prefers_default_filename_when_duplicates_exist(self) -> None:
         with workspace_temp_dir("plot-results-duplicates") as tmp_dir:
             _write_result(
                 tmp_dir / "cora" / "gcn_seed42.json",
@@ -92,30 +90,9 @@ class PlotResultLoadingTests(unittest.TestCase):
                 score=0.63,
             )
 
-            results = plot_results.load_results(tmp_dir, graph_variant="undirected")
+            results = plot_results.load_results(tmp_dir)
 
         self.assertEqual(results["Cora"]["GCN"], 0.71)
-
-    def test_load_results_filters_by_graph_variant(self) -> None:
-        with workspace_temp_dir("plot-results-directed") as tmp_dir:
-            _write_result(
-                tmp_dir / "cora" / "gcn_seed42.json",
-                dataset="Cora",
-                method="gcn",
-                score=0.71,
-                is_undirected=True,
-            )
-            _write_result(
-                tmp_dir / "cora" / "gcn_directed_seed42.json",
-                dataset="Cora",
-                method="gcn",
-                score=0.54,
-                is_undirected=False,
-            )
-
-            results = plot_results.load_results(tmp_dir, graph_variant="directed")
-
-        self.assertEqual(results["Cora"]["GCN"], 0.54)
 
     def test_load_results_averages_scores_across_matching_seeds(self) -> None:
         with workspace_temp_dir("plot-results-seeds") as tmp_dir:
@@ -134,7 +111,7 @@ class PlotResultLoadingTests(unittest.TestCase):
                 seed=7,
             )
 
-            results = plot_results.load_results(tmp_dir, graph_variant="undirected")
+            results = plot_results.load_results(tmp_dir)
 
         self.assertEqual(results["Cora"]["GCN"], 0.75)
 
@@ -150,7 +127,6 @@ class PlotRenderingTests(unittest.TestCase):
                 },
                 output_path,
                 metric="roc_auc",
-                graph_variant="undirected",
             )
 
             self.assertTrue(output_path.exists())

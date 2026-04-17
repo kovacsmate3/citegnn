@@ -19,7 +19,6 @@ class LinkPredictionSplit:
     """Serialized edge splits for reproducible link prediction experiments."""
 
     dataset_name: str
-    is_undirected: bool
     seed: int
     val_ratio: float
     test_ratio: float
@@ -38,12 +37,6 @@ class LinkPredictionSplit:
     test_neg_edge_index: Tensor
 
     @property
-    def graph_variant(self) -> str:
-        """Return a stable graph-variant label for artifact naming."""
-
-        return "undirected" if self.is_undirected else "directed"
-
-    @property
     def train_graph_edge_count(self) -> int:
         """Return the number of message-passing edges in the training graph."""
 
@@ -58,7 +51,7 @@ class LinkPredictionSplit:
         )
 
 
-def _edge_pairs(edge_index: Tensor, *, is_undirected: bool) -> set[tuple[int, int]]:
+def _edge_pairs(edge_index: Tensor) -> set[tuple[int, int]]:
     """Convert an edge index into hashable edge pairs for overlap checks."""
 
     if edge_index.dim() != 2 or edge_index.size(0) != 2:
@@ -66,7 +59,7 @@ def _edge_pairs(edge_index: Tensor, *, is_undirected: bool) -> set[tuple[int, in
 
     pairs: set[tuple[int, int]] = set()
     for source, target in edge_index.t().tolist():
-        if is_undirected and source > target:
+        if source > target:
             source, target = target, source
         pairs.add((int(source), int(target)))
     return pairs
@@ -98,31 +91,13 @@ def _split_labeled_edges(
     return pos_edges.contiguous(), neg_edges.contiguous()
 
 
-def _artifact_graph_variant_suffix(*, is_undirected: bool) -> str:
-    """Return the suffix needed only for non-default graph variants."""
-
-    return "" if is_undirected else "_directed"
-
-
 def validate_link_prediction_split(split: LinkPredictionSplit) -> None:
     """Check that held-out positives do not leak into the training graph."""
 
-    train_pairs = _edge_pairs(
-        split.train_graph_edge_index,
-        is_undirected=split.is_undirected,
-    )
-    train_supervision_pairs = _edge_pairs(
-        split.train_pos_edge_index,
-        is_undirected=split.is_undirected,
-    )
-    val_pairs = _edge_pairs(
-        split.val_pos_edge_index,
-        is_undirected=split.is_undirected,
-    )
-    test_pairs = _edge_pairs(
-        split.test_pos_edge_index,
-        is_undirected=split.is_undirected,
-    )
+    train_pairs = _edge_pairs(split.train_graph_edge_index)
+    train_supervision_pairs = _edge_pairs(split.train_pos_edge_index)
+    val_pairs = _edge_pairs(split.val_pos_edge_index)
+    test_pairs = _edge_pairs(split.test_pos_edge_index)
 
     if train_pairs & val_pairs:
         raise ValueError("validation positive edges leak into the training graph")
@@ -159,7 +134,7 @@ def create_link_prediction_split(
     splitter = RandomLinkSplit(
         num_val=val_ratio,
         num_test=test_ratio,
-        is_undirected=not graph.is_directed,
+        is_undirected=True,
         add_negative_train_samples=True,
         neg_sampling_ratio=negative_ratio,
         split_labels=False,
@@ -181,7 +156,6 @@ def create_link_prediction_split(
 
     split = LinkPredictionSplit(
         dataset_name=graph.name,
-        is_undirected=not graph.is_directed,
         seed=seed,
         val_ratio=val_ratio,
         test_ratio=test_ratio,
@@ -213,11 +187,7 @@ def save_split_artifact(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    variant_suffix = _artifact_graph_variant_suffix(is_undirected=split.is_undirected)
-    artifact_path = (
-        output_path
-        / f"{split.dataset_name.lower()}{variant_suffix}_seed{split.seed}_lp.pt"
-    )
+    artifact_path = output_path / f"{split.dataset_name.lower()}_seed{split.seed}_lp.pt"
     torch.save(asdict(split), artifact_path)
     return artifact_path
 

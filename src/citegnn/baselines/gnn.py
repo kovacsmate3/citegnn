@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
@@ -25,6 +24,12 @@ from ..utils.metrics import ClassificationMetrics
 from ..utils.seed import seed_everything
 
 
+def _default_device() -> torch.device:
+    """Return CUDA when available, otherwise CPU."""
+
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
 class GNNMethod(StrEnum):
     """Supported GNN baseline variants."""
 
@@ -36,7 +41,7 @@ class GNNMethod(StrEnum):
 class GNNBaselineConfig:
     """Configuration for the shared GNN link-prediction baselines."""
 
-    hidden_dim: int = 64
+    hidden_dim: int = 128
     num_layers: int = 2
     dropout: float = 0.2
     decoder_hidden_dim: int = 64
@@ -135,8 +140,8 @@ class _LinkPredictionModel(nn.Module):
 def _edge_labels(pos_edge_index: Tensor, neg_edge_index: Tensor) -> Tensor:
     return torch.cat(
         [
-            torch.ones(pos_edge_index.size(1), dtype=torch.float32),
-            torch.zeros(neg_edge_index.size(1), dtype=torch.float32),
+            torch.ones(pos_edge_index.size(1), dtype=torch.float32, device=pos_edge_index.device),
+            torch.zeros(neg_edge_index.size(1), dtype=torch.float32, device=neg_edge_index.device),
         ]
     )
 
@@ -170,15 +175,21 @@ def _predict_scores(
     message_passing_edge_index: Tensor,
     pos_edge_index: Tensor,
     neg_edge_index: Tensor,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[Tensor, Tensor]:
+    """Score one positive/negative edge set and keep outputs on the active device."""
+
+    device = x.device
     model.eval()
     with torch.no_grad():
         node_embeddings = model.encode(x, message_passing_edge_index)
         edge_index = _combined_edge_index(pos_edge_index, neg_edge_index)
         logits = model.score_edges(node_embeddings, edge_index)
-        scores = torch.sigmoid(logits).detach().cpu().numpy()
-        labels = _edge_labels(pos_edge_index, neg_edge_index).detach().cpu().numpy()
-    return labels.astype(np.int64), scores.astype(np.float64)
+        scores = torch.sigmoid(logits).detach().to(dtype=torch.float64, device=device)
+        labels = _edge_labels(pos_edge_index, neg_edge_index).detach().to(
+            dtype=torch.int64,
+            device=device,
+        )
+    return labels, scores
 
 
 def run_gnn_baseline(
@@ -195,23 +206,33 @@ def run_gnn_baseline(
     resolved_config.validate()
     run_seed = split.seed if seed is None else seed
     seed_everything(run_seed)
+    device = _default_device()
 
     graph = load_citation_graph(
         split.dataset_name,
         root=data_root,
-        undirected=split.is_undirected,
         remove_self_loops=True,
     )
-    x = graph.x
-    train_graph_edge_index = split.train_graph_edge_index
-    train_edge_index = _combined_edge_index(split.train_pos_edge_index, split.train_neg_edge_index)
-    train_labels = _edge_labels(split.train_pos_edge_index, split.train_neg_edge_index)
+    x = graph.x.to(device)
+    train_graph_edge_index = split.train_graph_edge_index.to(device)
+    val_pos_edge_index = split.val_pos_edge_index.to(device)
+    val_neg_edge_index = split.val_neg_edge_index.to(device)
+    test_pos_edge_index = split.test_pos_edge_index.to(device)
+    test_neg_edge_index = split.test_neg_edge_index.to(device)
+    train_edge_index = _combined_edge_index(
+        split.train_pos_edge_index.to(device),
+        split.train_neg_edge_index.to(device),
+    )
+    train_labels = _edge_labels(
+        split.train_pos_edge_index.to(device),
+        split.train_neg_edge_index.to(device),
+    )
 
     model = _build_model(
         method=method,
         input_dim=graph.num_features,
         config=resolved_config,
-    )
+    ).to(device)
     optimizer = torch.optim.Adam(
         model.parameters(),
         lr=resolved_config.learning_rate,
@@ -238,15 +259,15 @@ def run_gnn_baseline(
             model,
             x=x,
             message_passing_edge_index=train_graph_edge_index,
-            pos_edge_index=split.val_pos_edge_index,
-            neg_edge_index=split.val_neg_edge_index,
+            pos_edge_index=val_pos_edge_index,
+            neg_edge_index=val_neg_edge_index,
         )
         y_test_true, y_test_score = _predict_scores(
             model,
             x=x,
             message_passing_edge_index=train_graph_edge_index,
-            pos_edge_index=split.test_pos_edge_index,
-            neg_edge_index=split.test_neg_edge_index,
+            pos_edge_index=test_pos_edge_index,
+            neg_edge_index=test_neg_edge_index,
         )
         validation_metrics, test_metrics = evaluate_with_validation_threshold(
             y_val_true=y_val_true,
@@ -274,8 +295,8 @@ def run_gnn_baseline(
     params: dict[str, Any] = resolved_config.to_dict()
     params.update(
         {
+            "device": str(device),
             "split_seed": int(split.seed),
-            "is_undirected": bool(split.is_undirected),
             "train_graph_edges": split.train_graph_edge_count,
             "train_supervision_edges": split.train_supervision_edge_count,
             "best_epoch": int(best_epoch),

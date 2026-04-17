@@ -73,12 +73,11 @@ class Node2VecHelperTests(unittest.TestCase):
         pairs = _positive_pairs_from_walks([[0, 1, 2]], context_window=1)
         self.assertEqual(pairs, [(0, 1), (1, 0), (1, 2), (2, 1)])
 
-    def test_build_adjacency_respects_graph_directionality(self) -> None:
-        undirected = _build_adjacency(make_link_prediction_split(is_undirected=True))
-        directed = _build_adjacency(make_link_prediction_split(is_undirected=False))
+    def test_build_adjacency_uses_undirected_train_graph(self) -> None:
+        adjacency = _build_adjacency(make_link_prediction_split())
 
-        self.assertEqual(undirected[1], [0, 2])
-        self.assertEqual(directed[1], [2])
+        self.assertEqual(adjacency[1], [0, 2])
+        self.assertEqual(adjacency[4], [3])
 
     def test_negative_sampling_distribution_keeps_isolated_nodes_sampleable(self) -> None:
         distribution = _negative_sampling_distribution({0: [1], 1: [0], 2: []})

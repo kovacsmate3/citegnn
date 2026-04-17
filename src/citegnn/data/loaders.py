@@ -13,7 +13,6 @@ from torch_geometric.datasets import Planetoid
 from torch_geometric.transforms import NormalizeFeatures
 from torch_geometric.utils import (
     coalesce,
-    is_undirected,
     remove_self_loops as pyg_remove_self_loops,
     to_undirected,
 )
@@ -39,7 +38,7 @@ class GraphData:
     train_mask: Tensor
     val_mask: Tensor
     test_mask: Tensor
-    is_directed: bool
+    is_undirected: bool = True
 
 
 def _require_tensor(value: Tensor | None, *, name: str) -> Tensor:
@@ -63,10 +62,9 @@ def load_citation_graph(
     *,
     root: str | Path = "data",
     normalize_features: bool = True,
-    undirected: bool = True,
     remove_self_loops: bool = True,
 ) -> GraphData:
-    """Load and normalize one citation graph from the Planetoid benchmark suite."""
+    """Load and normalize one undirected citation graph from Planetoid."""
 
     dataset_name = CitationDataset(dataset).value
     transform = NormalizeFeatures() if normalize_features else None
@@ -86,11 +84,7 @@ def load_citation_graph(
     if remove_self_loops:
         edge_index, _ = pyg_remove_self_loops(edge_index)
 
-    input_is_directed = not bool(is_undirected(edge_index))
-
-    if undirected:
-        edge_index = to_undirected(edge_index, num_nodes=num_nodes)
-
+    edge_index = to_undirected(edge_index, num_nodes=num_nodes)
     edge_index = coalesce(edge_index, num_nodes=num_nodes)
 
     return GraphData(
@@ -103,5 +97,5 @@ def load_citation_graph(
         train_mask=train_mask.clone(),
         val_mask=val_mask.clone(),
         test_mask=test_mask.clone(),
-        is_directed=input_is_directed and not undirected,
+        is_undirected=True,
     )

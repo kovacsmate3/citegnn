@@ -1,0 +1,38 @@
+{
+  "dataset": "Cora",
+  "method": "feature_only_mlp",
+  "params": {
+    "batch_size": 1024,
+    "best_epoch": 86,
+    "dropout": 0.2,
+    "epochs": 100,
+    "feature_mode": "hadamard_abs_diff",
+    "hidden_dim": 256,
+    "learning_rate": 0.001,
+    "pairwise_feature_dim": 2866,
+    "patience": 10,
+    "show_progress": true,
+    "split_seed": 67,
+    "train_supervision_edges": 7392,
+    "weight_decay": 0.0001
+  },
+  "seed": 67,
+  "test": {
+    "average_precision": 0.8279674065678766,
+    "f1": 0.7469576164498531,
+    "positive_rate": 0.6293838862559241,
+    "precision": 0.6701807228915663,
+    "recall": 0.8436018957345972,
+    "roc_auc": 0.8203890298960042,
+    "threshold": 0.3460789620876312
+  },
+  "validation": {
+    "average_precision": 0.8154555687699121,
+    "f1": 0.7644151565074135,
+    "positive_rate": 0.6518026565464896,
+    "precision": 0.6754002911208151,
+    "recall": 0.8804554079696395,
+    "roc_auc": 0.8181140608290816,
+    "threshold": 0.3460789620876312
+  }
+}

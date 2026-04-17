@@ -21,7 +21,7 @@ from tests.support import (
 
 class SmokeCliTests(unittest.TestCase):
     def test_smoke_main_prints_json_summary_from_pipeline_outputs(self) -> None:
-        graph = make_graph_data(is_directed=False)
+        graph = make_graph_data()
         split = make_link_prediction_split()
         fake_artifact = Path("artifacts/splits/cora_seed42_lp.pt")
 
@@ -145,6 +145,51 @@ class BaselineScriptIntegrationTests(unittest.TestCase):
         self.assertEqual(config.classifier_c, 0.5)
         self.assertIn("node2vec", stdout.getvalue())
 
+    def test_run_feature_only_script_builds_config_and_saves_result(self) -> None:
+        module = load_script_module(
+            "tests.run_feature_only_baseline_script",
+            "scripts/run_feature_only_baseline.py",
+        )
+        args = SimpleNamespace(
+            split_path=Path("dummy.pt"),
+            output_dir=Path("results"),
+            data_root="data",
+            feature_mode="hadamard_abs_diff",
+            hidden_dim=32,
+            dropout=0.1,
+            learning_rate=0.001,
+            weight_decay=0.0001,
+            epochs=4,
+            patience=2,
+            batch_size=16,
+        )
+
+        stdout = io.StringIO()
+        with patch.object(module, "parse_args", return_value=args), patch.object(
+            module,
+            "load_split_artifact",
+            return_value=make_link_prediction_split(),
+        ), patch.object(
+            module,
+            "run_feature_only_baseline",
+            return_value=make_experiment_result("feature_only_mlp"),
+        ) as run_mock, patch.object(
+            module,
+            "save_and_describe_experiment_result",
+            return_value=(
+                Path("results/cora/feature_only_mlp_seed42.json"),
+                "feature_only_mlp -> results/cora/feature_only_mlp_seed42.json",
+            ),
+        ), redirect_stdout(stdout):
+            module.main()
+
+        config = run_mock.call_args.kwargs["config"]
+        self.assertEqual(config.feature_mode, "hadamard_abs_diff")
+        self.assertEqual(config.hidden_dim, 32)
+        self.assertEqual(config.batch_size, 16)
+        self.assertEqual(run_mock.call_args.kwargs["data_root"], "data")
+        self.assertIn("feature_only_mlp", stdout.getvalue())
+
     def test_run_gnn_script_runs_all_requested_methods(self) -> None:
         module = load_script_module(
             "tests.run_gnn_baselines_script",
@@ -193,6 +238,61 @@ class BaselineScriptIntegrationTests(unittest.TestCase):
         printed = stdout.getvalue()
         for method in GNNMethod:
             self.assertIn(method.value, printed)
+
+    def test_run_baseline_ablation_script_includes_feature_only_baseline(self) -> None:
+        module = load_script_module(
+            "tests.run_baseline_ablation_script",
+            "scripts/run_baseline_ablation.py",
+        )
+        args = SimpleNamespace(
+            datasets=["Cora"],
+            seed=42,
+            data_root=Path("data"),
+            split_output_dir=Path("artifacts/splits"),
+            result_output_dir=Path("results"),
+            gnn_hidden_dim=4,
+            gnn_decoder_hidden_dim=4,
+            gnn_epochs=2,
+            gnn_patience=1,
+            node2vec_epochs=1,
+            feature_only_hidden_dim=16,
+            feature_only_epochs=3,
+            feature_only_patience=2,
+        )
+
+        stdout = io.StringIO()
+        with patch.object(module, "parse_args", return_value=args), patch.object(
+            module,
+            "_build_split",
+            return_value=make_link_prediction_split(),
+        ), patch.object(
+            module,
+            "run_heuristic_baseline",
+            side_effect=lambda split, method: make_experiment_result(method.value),
+        ), patch.object(
+            module,
+            "run_node2vec_baseline",
+            return_value=make_experiment_result("node2vec"),
+        ), patch.object(
+            module,
+            "run_feature_only_baseline",
+            return_value=make_experiment_result("feature_only_mlp"),
+        ) as feature_only_mock, patch.object(
+            module,
+            "run_gnn_baseline",
+            side_effect=lambda split, method, config, data_root: make_experiment_result(method.value),
+        ), patch.object(
+            module,
+            "_print_saved_result",
+            side_effect=lambda output_dir, result: print(result.method),
+        ), patch.object(module, "seed_everything"), redirect_stdout(stdout):
+            module.main()
+
+        config = feature_only_mock.call_args.kwargs["config"]
+        self.assertEqual(config.hidden_dim, 16)
+        self.assertEqual(config.epochs, 3)
+        self.assertEqual(config.patience, 2)
+        self.assertIn("feature_only_mlp", stdout.getvalue())
 
 
 if __name__ == "__main__":

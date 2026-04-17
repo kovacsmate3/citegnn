@@ -75,7 +75,6 @@ class LoaderTests(unittest.TestCase):
             loaders.CitationDataset.CORA,
             root="ignored",
             normalize_features=True,
-            undirected=True,
             remove_self_loops=True,
         )
 
@@ -83,7 +82,7 @@ class LoaderTests(unittest.TestCase):
         self.assertEqual(graph.name, "Cora")
         self.assertEqual(graph.num_nodes, 3)
         self.assertEqual(graph.num_features, 3)
-        self.assertFalse(graph.is_directed)
+        self.assertTrue(graph.is_undirected)
         self.assertNotIn((0, 0), pairs)
         self.assertIn((0, 1), pairs)
         self.assertIn((1, 0), pairs)
@@ -94,20 +93,20 @@ class LoaderTests(unittest.TestCase):
         self.assertTrue(torch.allclose(row_sums, torch.ones_like(row_sums)))
 
     @patch.object(loaders, "Planetoid", _DummyPlanetoid)
-    def test_load_citation_graph_can_preserve_directionality(self) -> None:
+    def test_load_citation_graph_always_symmetrizes_edges(self) -> None:
         graph = loaders.load_citation_graph(
             "Cora",
             root="ignored",
             normalize_features=False,
-            undirected=False,
             remove_self_loops=True,
         )
 
         pairs = {tuple(edge) for edge in graph.edge_index.t().tolist()}
-        self.assertTrue(graph.is_directed)
+        self.assertTrue(graph.is_undirected)
         self.assertIn((0, 1), pairs)
         self.assertIn((1, 2), pairs)
-        self.assertNotIn((1, 0), pairs)
+        self.assertIn((1, 0), pairs)
+        self.assertIn((2, 1), pairs)
 
     @patch.object(loaders, "Planetoid", _DummyPlanetoid)
     def test_load_citation_graph_can_keep_self_loops_when_requested(self) -> None:
@@ -115,25 +114,23 @@ class LoaderTests(unittest.TestCase):
             "Cora",
             root="ignored",
             normalize_features=False,
-            undirected=False,
             remove_self_loops=False,
         )
 
         pairs = {tuple(edge) for edge in graph.edge_index.t().tolist()}
         self.assertIn((0, 0), pairs)
-        self.assertTrue(graph.is_directed)
+        self.assertTrue(graph.is_undirected)
 
     @patch.object(loaders, "Planetoid", _UndirectedPlanetoid)
-    def test_load_citation_graph_detects_undirected_input_without_forcing_conversion(self) -> None:
+    def test_load_citation_graph_keeps_undirected_metadata(self) -> None:
         graph = loaders.load_citation_graph(
             "Cora",
             root="ignored",
             normalize_features=False,
-            undirected=False,
             remove_self_loops=True,
         )
 
-        self.assertFalse(graph.is_directed)
+        self.assertTrue(graph.is_undirected)
         self.assertEqual(graph.num_nodes, 2)
         self.assertEqual(graph.num_features, 2)
 
