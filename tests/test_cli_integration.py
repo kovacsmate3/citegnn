@@ -281,7 +281,7 @@ class BaselineScriptIntegrationTests(unittest.TestCase):
         ) as feature_only_mock, patch.object(
             module,
             "run_gnn_baseline",
-            side_effect=lambda split, method, config, data_root: make_experiment_result(method.value),
+            side_effect=lambda split, method, config, data_root, method_name_override=None: make_experiment_result(method.value),
         ), patch.object(
             module,
             "_print_saved_result",
