@@ -199,6 +199,7 @@ def run_gnn_baseline(
     config: GNNBaselineConfig | None = None,
     seed: int | None = None,
     data_root: str = "data",
+    method_name_override: str | None = None,
 ) -> ExperimentResult:
     """Train one GNN baseline and evaluate it on the shared split artifact."""
 
@@ -305,7 +306,7 @@ def run_gnn_baseline(
 
     return build_experiment_result(
         dataset=split.dataset_name,
-        method=method.value,
+        method=method_name_override or method.value,
         seed=run_seed,
         params=params,
         validation_metrics=best_validation_metrics,
