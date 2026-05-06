@@ -254,7 +254,7 @@ class BaselineScriptIntegrationTests(unittest.TestCase):
             gnn_decoder_hidden_dim=4,
             gnn_epochs=2,
             gnn_patience=1,
-            gnn_num_layers_deep=4,
+            gnn_num_layers=2,
             node2vec_epochs=1,
             feature_only_hidden_dim=16,
             feature_only_epochs=3,

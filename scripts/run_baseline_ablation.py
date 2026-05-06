@@ -82,10 +82,10 @@ def parse_args() -> argparse.Namespace:
         help="Early-stopping patience for the trainable GNN baselines.",
     )
     parser.add_argument(
-        "--gnn-num-layers-deep",
+        "--gnn-num-layers",
         type=int,
-        default=4,
-        help="Number of layers for the deep GNN ablation.",
+        default=2,
+        help="Number of message-passing layers for GNN baselines.",
     )
     parser.add_argument(
         "--node2vec-epochs",
@@ -157,13 +157,7 @@ def main() -> None:
         decoder_hidden_dim=args.gnn_decoder_hidden_dim,
         epochs=args.gnn_epochs,
         patience=args.gnn_patience,
-    )
-    gnn_deep_config = GNNBaselineConfig(
-        hidden_dim=args.gnn_hidden_dim,
-        decoder_hidden_dim=args.gnn_decoder_hidden_dim,
-        epochs=args.gnn_epochs,
-        patience=args.gnn_patience,
-        num_layers=args.gnn_num_layers_deep,
+        num_layers=args.gnn_num_layers,
     )
     node2vec_config = Node2VecConfig(epochs=args.node2vec_epochs)
     feature_only_config = FeatureOnlyBaselineConfig(
@@ -201,17 +195,9 @@ def main() -> None:
                 method=gnn_method,
                 config=gnn_config,
                 data_root=str(args.data_root),
+                method_name_override=f"{gnn_method.value}_{args.gnn_num_layers}l",
             )
             _print_saved_result(args.result_output_dir, result=result)
-
-            deep_result = run_gnn_baseline(
-                split,
-                method=gnn_method,
-                config=gnn_deep_config,
-                data_root=str(args.data_root),
-                method_name_override=f"{gnn_method.value}_deep",
-            )
-            _print_saved_result(args.result_output_dir, result=deep_result)
 
 
 if __name__ == "__main__":
