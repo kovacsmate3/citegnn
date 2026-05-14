@@ -18,9 +18,9 @@ The 'Paper' column is the value reported by Li et al. (NeurIPS 2023) Table 4.
 | GCN |  4.53 |  0.38 |  2.65 | 10.23 | 64.02 | 16.61 | 36.26 | -12.08 |
 | GraphSAGE |  5.51 |  0.95 |  3.79 | 13.83 | 63.83 | 14.74 | 34.65 | -9.23 |
 | GAT | 12.49 |  4.92 | 11.93 | 29.17 | 71.78 | -- | -- | -- |
-| GCN + structural PE |  2.96 |  0.00 |  1.33 |  6.25 | 59.28 | -- | -- | -- |
-| GraphSAGE + structural PE |  2.06 |  0.00 |  0.57 |  3.03 | 46.78 | -- | -- | -- |
-| GAT + structural PE |  4.73 |  1.14 |  3.41 | 10.42 | 56.25 | -- | -- | -- |
+| GCN + structural PE |  1.78 |  0.38 |  0.57 |  1.52 | 34.66 | -- | -- | -- |
+| GraphSAGE + structural PE |  5.12 |  1.33 |  3.41 | 12.31 | 52.65 | -- | -- | -- |
+| GAT + structural PE | 10.92 |  3.79 | 10.61 | 24.05 | 70.08 | -- | -- | -- |
 
 ### PubMed
 
@@ -38,6 +38,6 @@ The 'Paper' column is the value reported by Li et al. (NeurIPS 2023) Table 4.
 | GCN |  3.38 |  0.56 |  1.67 |  6.52 | 54.26 |  7.13 | 15.22 | -3.75 |
 | GraphSAGE |  3.07 |  0.23 |  1.33 |  5.73 | 57.63 |  9.39 | 20.54 | -6.32 |
 | GAT |  2.29 |  0.23 |  0.79 |  3.47 | 47.83 | -- | -- | -- |
-| GCN + structural PE |  0.66 |  0.00 |  0.05 |  0.11 | 11.35 | -- | -- | -- |
-| GraphSAGE + structural PE |  0.66 |  0.00 |  0.02 |  0.18 | 10.56 | -- | -- | -- |
-| GAT + structural PE |  0.77 |  0.02 |  0.07 |  0.38 | 16.34 | -- | -- | -- |
+| GCN + structural PE |  2.57 |  0.25 |  1.20 |  5.10 | 41.02 | -- | -- | -- |
+| GraphSAGE + structural PE |  1.75 |  0.05 |  0.43 |  2.66 | 37.18 | -- | -- | -- |
+| GAT + structural PE |  1.93 |  0.07 |  0.74 |  3.41 | 37.48 | -- | -- | -- |
