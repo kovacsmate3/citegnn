@@ -1,4 +1,4 @@
-"""Run the node2vec link-prediction baseline from a saved split artifact."""
+"""Run the node2vec link-prediction baseline from a saved HeaRT split."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 
 from citegnn.baselines.node2vec import Node2VecConfig, run_node2vec_baseline
-from citegnn.data.splits import load_split_artifact
+from citegnn.data.heart_split import load_heart_split
 from citegnn.evaluation import save_and_describe_experiment_result
 
 
@@ -30,7 +30,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    split = load_split_artifact(args.split_path)
+    split = load_heart_split(args.split_path)
     config = Node2VecConfig(
         embedding_dim=args.embedding_dim,
         walk_length=args.walk_length,
@@ -45,10 +45,7 @@ def main() -> None:
         classifier_c=args.classifier_c,
     )
     result = run_node2vec_baseline(split, config=config)
-    _, summary = save_and_describe_experiment_result(
-        result,
-        output_dir=args.output_dir,
-    )
+    _, summary = save_and_describe_experiment_result(result, output_dir=args.output_dir)
     print(summary)
 
 

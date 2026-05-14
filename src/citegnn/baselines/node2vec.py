@@ -1,4 +1,4 @@
-"""CPU-friendly node2vec baseline for link prediction."""
+"""CPU-friendly node2vec baseline (HeaRT protocol)."""
 
 from __future__ import annotations
 
@@ -12,11 +12,11 @@ import torch.nn.functional as F
 from sklearn.linear_model import LogisticRegression
 from torch import Tensor, nn
 
-from ..data.splits import LinkPredictionSplit
+from ..data.heart_split import HeartSplit
 from ..evaluation import (
     ExperimentResult,
     build_experiment_result,
-    evaluate_with_validation_threshold,
+    evaluate_with_heart_negatives,
 )
 from ..utils.seed import seed_everything
 
@@ -53,28 +53,20 @@ class Node2VecConfig:
         }
 
     def validate(self) -> None:
-        if self.embedding_dim <= 0:
-            raise ValueError("embedding_dim must be positive")
-        if self.walk_length <= 0:
-            raise ValueError("walk_length must be positive")
-        if self.walks_per_node <= 0:
-            raise ValueError("walks_per_node must be positive")
-        if self.context_window <= 0:
-            raise ValueError("context_window must be positive")
-        if self.negative_samples <= 0:
-            raise ValueError("negative_samples must be positive")
-        if self.epochs <= 0:
-            raise ValueError("epochs must be positive")
-        if self.batch_size <= 0:
-            raise ValueError("batch_size must be positive")
-        if self.learning_rate <= 0:
-            raise ValueError("learning_rate must be positive")
-        if self.p <= 0:
-            raise ValueError("p must be positive")
-        if self.q <= 0:
-            raise ValueError("q must be positive")
-        if self.classifier_c <= 0:
-            raise ValueError("classifier_c must be positive")
+        for name in (
+            "embedding_dim",
+            "walk_length",
+            "walks_per_node",
+            "context_window",
+            "negative_samples",
+            "epochs",
+            "batch_size",
+        ):
+            if getattr(self, name) <= 0:
+                raise ValueError(f"{name} must be positive")
+        for name in ("learning_rate", "p", "q", "classifier_c"):
+            if getattr(self, name) <= 0:
+                raise ValueError(f"{name} must be positive")
 
 
 class _SkipGramModel(nn.Module):
@@ -104,27 +96,24 @@ class _SkipGramModel(nn.Module):
         return np.asarray(weight, dtype=np.float32)
 
 
-def _edge_columns(edge_index: Tensor) -> list[tuple[int, int]]:
-    if edge_index.dim() != 2 or edge_index.size(0) != 2:
-        raise ValueError("edge_index must have shape [2, num_edges]")
-    return [(int(source), int(target)) for source, target in edge_index.t().tolist()]
-
-
-def _build_adjacency(split: LinkPredictionSplit) -> dict[int, list[int]]:
+def _build_adjacency(split: HeartSplit) -> dict[int, list[int]]:
     adjacency_sets: dict[int, set[int]] = defaultdict(set)
-    for source, target in _edge_columns(split.train_graph_edge_index):
-        adjacency_sets[source].add(target)
-    num_nodes = int(split.train_mask.numel())
-    return {node: sorted(adjacency_sets.get(node, set())) for node in range(num_nodes)}
+    src = split.train_edge_index[0].tolist()
+    dst = split.train_edge_index[1].tolist()
+    for u, v in zip(src, dst):
+        adjacency_sets[int(u)].add(int(v))
+    return {
+        node: sorted(adjacency_sets.get(node, set()))
+        for node in range(split.num_nodes)
+    }
 
 
 def _edge_set(adjacency: dict[int, list[int]]) -> set[tuple[int, int]]:
-    return {(source, target) for source, neighbors in adjacency.items() for target in neighbors}
+    return {(s, t) for s, neighbors in adjacency.items() for t in neighbors}
 
 
 def _node2vec_transition_weights(
     previous: int,
-    current: int,
     neighbors: list[int],
     edge_pairs: set[tuple[int, int]],
     *,
@@ -164,11 +153,9 @@ def _generate_random_walks(
             if not neighbors:
                 walks.append([start])
                 continue
-
             walk = [start]
             current = start
             previous: int | None = None
-
             for _step in range(1, walk_length):
                 current_neighbors = adjacency[current]
                 if not current_neighbors:
@@ -178,7 +165,6 @@ def _generate_random_walks(
                 else:
                     probabilities = _node2vec_transition_weights(
                         previous,
-                        current,
                         current_neighbors,
                         edge_pairs,
                         p=p,
@@ -187,9 +173,7 @@ def _generate_random_walks(
                     next_node = int(rng.choice(current_neighbors, p=probabilities))
                 walk.append(next_node)
                 previous, current = current, next_node
-
             walks.append(walk)
-
     return walks
 
 
@@ -220,7 +204,7 @@ def _negative_sampling_distribution(adjacency: dict[int, list[int]]) -> np.ndarr
 
 
 def _train_node2vec_embeddings(
-    split: LinkPredictionSplit,
+    split: HeartSplit,
     config: Node2VecConfig,
     *,
     seed: int,
@@ -235,10 +219,7 @@ def _train_node2vec_embeddings(
         q=config.q,
         rng=rng,
     )
-    positive_pairs = _positive_pairs_from_walks(
-        walks,
-        context_window=config.context_window,
-    )
+    positive_pairs = _positive_pairs_from_walks(walks, context_window=config.context_window)
     if not positive_pairs:
         raise ValueError("node2vec training produced no positive context pairs")
 
@@ -261,7 +242,6 @@ def _train_node2vec_embeddings(
                 ),
                 dtype=torch.long,
             )
-
             optimizer.zero_grad()
             loss = model.positive_loss(sources, contexts) + model.negative_loss(sources, negatives)
             loss.backward()
@@ -270,62 +250,81 @@ def _train_node2vec_embeddings(
     return model.embeddings()
 
 
-def _edge_features(edge_index: Tensor, embeddings: np.ndarray) -> np.ndarray:
-    sources = edge_index[0].detach().cpu().numpy().astype(np.int64)
-    targets = edge_index[1].detach().cpu().numpy().astype(np.int64)
-    return embeddings[sources] * embeddings[targets]
+def _hadamard_features(edge_index: Tensor, embeddings: np.ndarray) -> np.ndarray:
+    src = edge_index[0].detach().cpu().numpy().astype(np.int64)
+    dst = edge_index[1].detach().cpu().numpy().astype(np.int64)
+    return embeddings[src] * embeddings[dst]
 
 
-def _labeled_edge_features(
-    pos_edge_index: Tensor,
-    neg_edge_index: Tensor,
-    embeddings: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
-    pos_features = _edge_features(pos_edge_index, embeddings)
-    neg_features = _edge_features(neg_edge_index, embeddings)
-    features = np.vstack([pos_features, neg_features]).astype(np.float32)
-    labels = np.concatenate(
-        [
-            np.ones(pos_features.shape[0], dtype=np.int64),
-            np.zeros(neg_features.shape[0], dtype=np.int64),
-        ]
-    )
-    return features, labels
+def _sample_random_negative_edges(
+    *,
+    num_samples: int,
+    num_nodes: int,
+    forbidden: set[tuple[int, int]],
+    rng: np.random.Generator,
+) -> Tensor:
+    samples: list[tuple[int, int]] = []
+    cap = 10 * num_samples
+    attempts = 0
+    while len(samples) < num_samples and attempts < cap:
+        u = int(rng.integers(0, num_nodes))
+        v = int(rng.integers(0, num_nodes))
+        if u == v:
+            attempts += 1
+            continue
+        key = (u, v) if u < v else (v, u)
+        if key in forbidden:
+            attempts += 1
+            continue
+        samples.append((u, v))
+        attempts += 1
+    while len(samples) < num_samples:
+        u = int(rng.integers(0, num_nodes))
+        v = int(rng.integers(0, num_nodes))
+        if u != v:
+            samples.append((u, v))
+    arr = np.asarray(samples, dtype=np.int64).T
+    return torch.from_numpy(arr).contiguous()
 
 
 def run_node2vec_baseline(
-    split: LinkPredictionSplit,
+    split: HeartSplit,
     *,
     config: Node2VecConfig | None = None,
     seed: int | None = None,
 ) -> ExperimentResult:
-    """Train node2vec on the train graph and evaluate a logistic edge classifier."""
+    """Train node2vec embeddings + logistic edge classifier; eval with HeaRT."""
 
     resolved_config = config or Node2VecConfig()
     resolved_config.validate()
     run_seed = split.seed if seed is None else seed
     seed_everything(run_seed)
 
-    embeddings = _train_node2vec_embeddings(
-        split,
-        resolved_config,
-        seed=run_seed,
+    embeddings = _train_node2vec_embeddings(split, resolved_config, seed=run_seed)
+
+    rng = np.random.default_rng(run_seed)
+    forbidden_train: set[tuple[int, int]] = set()
+    src = split.train_pos_edge_index[0].tolist()
+    dst = split.train_pos_edge_index[1].tolist()
+    for u, v in zip(src, dst):
+        a, b = (int(u), int(v)) if int(u) < int(v) else (int(v), int(u))
+        forbidden_train.add((a, b))
+
+    train_neg = _sample_random_negative_edges(
+        num_samples=int(split.train_pos_edge_index.size(1)),
+        num_nodes=split.num_nodes,
+        forbidden=forbidden_train,
+        rng=rng,
     )
 
-    x_train, y_train = _labeled_edge_features(
-        split.train_pos_edge_index,
-        split.train_neg_edge_index,
-        embeddings,
-    )
-    x_val, y_val = _labeled_edge_features(
-        split.val_pos_edge_index,
-        split.val_neg_edge_index,
-        embeddings,
-    )
-    x_test, y_test = _labeled_edge_features(
-        split.test_pos_edge_index,
-        split.test_neg_edge_index,
-        embeddings,
+    pos_features = _hadamard_features(split.train_pos_edge_index, embeddings)
+    neg_features = _hadamard_features(train_neg, embeddings)
+    x_train = np.vstack([pos_features, neg_features]).astype(np.float32)
+    y_train = np.concatenate(
+        [
+            np.ones(pos_features.shape[0], dtype=np.int64),
+            np.zeros(neg_features.shape[0], dtype=np.int64),
+        ]
     )
 
     classifier = LogisticRegression(
@@ -335,21 +334,26 @@ def run_node2vec_baseline(
     )
     classifier.fit(x_train, y_train)
 
-    y_val_score = classifier.predict_proba(x_val)[:, 1]
-    y_test_score = classifier.predict_proba(x_test)[:, 1]
-    validation_metrics, test_metrics = evaluate_with_validation_threshold(
-        y_val_true=y_val,
-        y_val_score=y_val_score,
-        y_test_true=y_test,
-        y_test_score=y_test_score,
+    def score_fn(edges: Tensor) -> Tensor:
+        feats = _hadamard_features(edges, embeddings).astype(np.float32)
+        probs = classifier.predict_proba(feats)[:, 1]
+        return torch.from_numpy(probs.astype(np.float64))
+
+    validation, test = evaluate_with_heart_negatives(
+        score_fn=score_fn,
+        val_pos_edge_index=split.val_pos_edge_index,
+        val_neg_nodes=split.val_neg_nodes,
+        test_pos_edge_index=split.test_pos_edge_index,
+        test_neg_nodes=split.test_neg_nodes,
     )
 
     params: dict[str, Any] = resolved_config.to_dict()
     params.update(
         {
             "split_seed": int(split.seed),
+            "K": int(split.K),
             "train_graph_edges": split.train_graph_edge_count,
-            "train_supervision_edges": split.train_supervision_edge_count,
+            "num_train_positives": int(split.num_train_positives),
         }
     )
 
@@ -358,6 +362,12 @@ def run_node2vec_baseline(
         method="node2vec",
         seed=run_seed,
         params=params,
-        validation_metrics=validation_metrics,
-        test_metrics=test_metrics,
+        validation=validation,
+        test=test,
     )
+
+
+__all__ = [
+    "Node2VecConfig",
+    "run_node2vec_baseline",
+]

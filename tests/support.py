@@ -1,3 +1,5 @@
+"""Shared test fixtures and helpers."""
+
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -10,10 +12,11 @@ import uuid
 
 import torch
 
+from citegnn.data.heart_split import HeartSplit
 from citegnn.data.loaders import GraphData
-from citegnn.data.splits import LinkPredictionSplit
 from citegnn.evaluation import ExperimentResult
 from citegnn.utils.metrics import ClassificationMetrics
+from citegnn.utils.ranking_metrics import RankingMetrics
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -73,28 +76,41 @@ def make_graph_data(*, name: str = "Cora") -> GraphData:
     )
 
 
-def make_link_prediction_split() -> LinkPredictionSplit:
-    train_graph_pairs = [(0, 1), (1, 2), (2, 3), (3, 0), (3, 4)]
-    train_supervision_pairs = [(0, 1), (1, 2), (2, 3), (3, 0)]
-    return LinkPredictionSplit(
+def make_heart_split(*, K: int = 4) -> HeartSplit:
+    """Build a tiny deterministic HeartSplit for unit tests.
+
+    The graph has 6 nodes; train uses 5 canonical edges, val holds out
+    one, test holds out one. Hard negatives are pre-set so tests can
+    assert exact ranking outcomes.
+    """
+
+    train_pos = edge_index_from_pairs([(0, 1), (1, 2), (2, 3), (3, 0), (3, 4)])
+    val_pos = edge_index_from_pairs([(0, 2)])
+    test_pos = edge_index_from_pairs([(1, 3)])
+    train_edge_index = torch.cat(
+        [train_pos, torch.stack([train_pos[1], train_pos[0]], dim=0)],
+        dim=1,
+    )
+    val_neg_nodes = torch.tensor([[5, 4, 3, 5]], dtype=torch.long)
+    test_neg_nodes = torch.tensor([[5, 4, 0, 5]], dtype=torch.long)
+    return HeartSplit(
         dataset_name="Cora",
         seed=42,
-        val_ratio=0.1,
-        test_ratio=0.2,
-        negative_ratio=1.0,
-        train_mask=torch.tensor([True, True, True, False, False, False]),
-        val_mask=torch.tensor([False, False, False, True, False, False]),
-        test_mask=torch.tensor([False, False, False, False, True, True]),
-        train_graph_edge_index=edge_index_from_pairs(train_graph_pairs, bidirectional=True),
-        val_graph_edge_index=edge_index_from_pairs(train_graph_pairs, bidirectional=True),
-        test_graph_edge_index=edge_index_from_pairs(train_graph_pairs, bidirectional=True),
-        train_pos_edge_index=edge_index_from_pairs(train_supervision_pairs),
-        val_pos_edge_index=edge_index_from_pairs([(0, 2)]),
-        test_pos_edge_index=edge_index_from_pairs([(1, 3)]),
-        train_neg_edge_index=edge_index_from_pairs([(0, 4), (1, 4), (2, 5), (4, 5)]),
-        val_neg_edge_index=edge_index_from_pairs([(1, 5)]),
-        test_neg_edge_index=edge_index_from_pairs([(0, 5)]),
+        split_ratio=(0.85, 0.05, 0.10),
+        K=K,
+        num_nodes=6,
+        train_edge_index=train_edge_index,
+        train_pos_edge_index=train_pos,
+        val_pos_edge_index=val_pos,
+        test_pos_edge_index=test_pos,
+        val_neg_nodes=val_neg_nodes,
+        test_neg_nodes=test_neg_nodes,
+        heuristics_used=("resource_allocation", "personalized_pagerank", "feature_cosine"),
     )
+
+
+# Backwards-compatible alias used by older tests we keep around.
+make_link_prediction_split = make_heart_split
 
 
 def make_metrics(
@@ -118,21 +134,35 @@ def make_metrics(
     )
 
 
+def make_ranking_metrics() -> RankingMetrics:
+    return RankingMetrics(
+        mrr=0.42,
+        hits_at={1: 0.3, 3: 0.5, 10: 0.7, 100: 0.95},
+        num_positives=10,
+        num_negatives_per_positive=500,
+    )
+
+
 def make_experiment_result(method: str) -> ExperimentResult:
-    metrics = make_metrics()
+    classification = make_metrics().to_dict()
+    ranking = make_ranking_metrics().to_dict()
+    payload: dict[str, float] = {**ranking, **classification}
     return ExperimentResult(
         dataset="Cora",
         method=method,
         seed=42,
         params={"source": "test"},
-        validation=metrics.to_dict(),
-        test=metrics.to_dict(),
+        validation=payload,
+        test=payload,
     )
 
 
-def save_split_payload(path: Path, split: LinkPredictionSplit) -> Path:
+def save_split_payload(path: Path, split: HeartSplit) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(asdict(split), path)
+    payload = asdict(split)
+    payload["split_ratio"] = tuple(split.split_ratio)
+    payload["heuristics_used"] = tuple(split.heuristics_used)
+    torch.save(payload, path)
     return path
 
 

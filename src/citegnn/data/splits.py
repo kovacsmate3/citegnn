@@ -1,201 +1,50 @@
-"""Link prediction split creation and persistence."""
+"""Backwards-compatibility shim that re-exports the HeaRT split API.
+
+The original implementation in this module produced random
+positive/negative edge splits using
+:class:`torch_geometric.transforms.RandomLinkSplit`. As of the third and
+final milestone of the project the team has switched to the protocol
+proposed by Li et al. (NeurIPS 2023) "Evaluating Graph Neural Networks
+for Link Prediction: Current Pitfalls and New Benchmarking" -- see
+:mod:`citegnn.data.heart_split` for the current, canonical
+implementation.
+
+This module is kept so old call sites continue to work. New code should
+import from :mod:`citegnn.data.heart_split` directly.
+"""
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from pathlib import Path
+from .heart_split import (
+    DEFAULT_K,
+    DEFAULT_PPR_ALPHA,
+    DEFAULT_PPR_ITERATIONS,
+    DEFAULT_SPLIT_RATIO,
+    HeartSplit,
+    create_heart_split,
+    heart_split_artifact_name,
+    load_heart_split,
+    save_heart_split,
+)
 
-import torch
-from torch import Tensor
-from torch_geometric.data import Data
-from torch_geometric.transforms import RandomLinkSplit
+# Aliases that older code referred to.
+LinkPredictionSplit = HeartSplit
+create_link_prediction_split = create_heart_split
+load_split_artifact = load_heart_split
+save_split_artifact = save_heart_split
 
-from .loaders import GraphData
-from ..utils.seed import seed_everything
-
-
-@dataclass(slots=True)
-class LinkPredictionSplit:
-    """Serialized edge splits for reproducible link prediction experiments."""
-
-    dataset_name: str
-    seed: int
-    val_ratio: float
-    test_ratio: float
-    negative_ratio: float
-    train_mask: Tensor
-    val_mask: Tensor
-    test_mask: Tensor
-    train_graph_edge_index: Tensor
-    val_graph_edge_index: Tensor
-    test_graph_edge_index: Tensor
-    train_pos_edge_index: Tensor
-    val_pos_edge_index: Tensor
-    test_pos_edge_index: Tensor
-    train_neg_edge_index: Tensor
-    val_neg_edge_index: Tensor
-    test_neg_edge_index: Tensor
-
-    @property
-    def train_graph_edge_count(self) -> int:
-        """Return the number of message-passing edges in the training graph."""
-
-        return int(self.train_graph_edge_index.size(1))
-
-    @property
-    def train_supervision_edge_count(self) -> int:
-        """Return the number of labeled training edges used for supervision."""
-
-        return int(
-            self.train_pos_edge_index.size(1) + self.train_neg_edge_index.size(1)
-        )
-
-
-def _edge_pairs(edge_index: Tensor) -> set[tuple[int, int]]:
-    """Convert an edge index into hashable edge pairs for overlap checks."""
-
-    if edge_index.dim() != 2 or edge_index.size(0) != 2:
-        raise ValueError("edge_index must have shape [2, num_edges]")
-
-    pairs: set[tuple[int, int]] = set()
-    for source, target in edge_index.t().tolist():
-        if source > target:
-            source, target = target, source
-        pairs.add((int(source), int(target)))
-    return pairs
-
-
-def _validate_ratios(val_ratio: float, test_ratio: float) -> None:
-    """Validate the requested validation and test edge ratios."""
-
-    if not 0.0 < val_ratio < 1.0:
-        raise ValueError("val_ratio must be in (0, 1)")
-    if not 0.0 < test_ratio < 1.0:
-        raise ValueError("test_ratio must be in (0, 1)")
-    if val_ratio + test_ratio >= 1.0:
-        raise ValueError("val_ratio + test_ratio must be < 1")
-
-
-def _split_labeled_edges(
-    edge_label_index: Tensor,
-    edge_label: Tensor,
-) -> tuple[Tensor, Tensor]:
-    """Separate positive and negative supervision edges from PyG split outputs."""
-
-    if edge_label_index.dim() != 2 or edge_label_index.size(0) != 2:
-        raise ValueError("edge_label_index must have shape [2, num_edges]")
-
-    labels = edge_label.to(torch.bool)
-    pos_edges = edge_label_index[:, labels]
-    neg_edges = edge_label_index[:, ~labels]
-    return pos_edges.contiguous(), neg_edges.contiguous()
-
-
-def validate_link_prediction_split(split: LinkPredictionSplit) -> None:
-    """Check that held-out positives do not leak into the training graph."""
-
-    train_pairs = _edge_pairs(split.train_graph_edge_index)
-    train_supervision_pairs = _edge_pairs(split.train_pos_edge_index)
-    val_pairs = _edge_pairs(split.val_pos_edge_index)
-    test_pairs = _edge_pairs(split.test_pos_edge_index)
-
-    if train_pairs & val_pairs:
-        raise ValueError("validation positive edges leak into the training graph")
-    if train_pairs & test_pairs:
-        raise ValueError("test positive edges leak into the training graph")
-    if train_supervision_pairs & val_pairs:
-        raise ValueError("validation positive edges leak into training supervision")
-    if train_supervision_pairs & test_pairs:
-        raise ValueError("test positive edges leak into training supervision")
-    if val_pairs & test_pairs:
-        raise ValueError("validation and test positive edges overlap")
-
-
-def create_link_prediction_split(
-    graph: GraphData,
-    *,
-    val_ratio: float = 0.1,
-    test_ratio: float = 0.2,
-    negative_ratio: float = 1.0,
-    seed: int = 42,
-) -> LinkPredictionSplit:
-    """Create deterministic train/validation/test splits using PyG RandomLinkSplit."""
-
-    _validate_ratios(val_ratio=val_ratio, test_ratio=test_ratio)
-    if negative_ratio <= 0:
-        raise ValueError("negative_ratio must be positive")
-    seed_everything(seed)
-
-    base_data = Data(
-        x=graph.x,
-        edge_index=graph.edge_index,
-        num_nodes=graph.num_nodes,
-    )
-    splitter = RandomLinkSplit(
-        num_val=val_ratio,
-        num_test=test_ratio,
-        is_undirected=True,
-        add_negative_train_samples=True,
-        neg_sampling_ratio=negative_ratio,
-        split_labels=False,
-    )
-    train_data, val_data, test_data = splitter(base_data)
-
-    train_pos, train_neg = _split_labeled_edges(
-        train_data.edge_label_index,
-        train_data.edge_label,
-    )
-    val_pos, val_neg = _split_labeled_edges(
-        val_data.edge_label_index,
-        val_data.edge_label,
-    )
-    test_pos, test_neg = _split_labeled_edges(
-        test_data.edge_label_index,
-        test_data.edge_label,
-    )
-
-    split = LinkPredictionSplit(
-        dataset_name=graph.name,
-        seed=seed,
-        val_ratio=val_ratio,
-        test_ratio=test_ratio,
-        negative_ratio=negative_ratio,
-        train_mask=graph.train_mask,
-        val_mask=graph.val_mask,
-        test_mask=graph.test_mask,
-        train_graph_edge_index=train_data.edge_index,
-        val_graph_edge_index=val_data.edge_index,
-        test_graph_edge_index=test_data.edge_index,
-        train_pos_edge_index=train_pos,
-        val_pos_edge_index=val_pos,
-        test_pos_edge_index=test_pos,
-        train_neg_edge_index=train_neg,
-        val_neg_edge_index=val_neg,
-        test_neg_edge_index=test_neg,
-    )
-    validate_link_prediction_split(split)
-    return split
-
-
-def save_split_artifact(
-    split: LinkPredictionSplit,
-    *,
-    output_dir: str | Path = "artifacts/splits",
-) -> Path:
-    """Persist one split artifact to disk."""
-
-    output_path = Path(output_dir)
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    artifact_path = output_path / f"{split.dataset_name.lower()}_seed{split.seed}_lp.pt"
-    torch.save(asdict(split), artifact_path)
-    return artifact_path
-
-
-def load_split_artifact(path: str | Path) -> LinkPredictionSplit:
-    """Load one persisted split artifact from disk."""
-
-    payload = torch.load(Path(path), map_location="cpu")
-    split = LinkPredictionSplit(**payload)
-    validate_link_prediction_split(split)
-    return split
+__all__ = [
+    "DEFAULT_K",
+    "DEFAULT_PPR_ALPHA",
+    "DEFAULT_PPR_ITERATIONS",
+    "DEFAULT_SPLIT_RATIO",
+    "HeartSplit",
+    "LinkPredictionSplit",
+    "create_heart_split",
+    "create_link_prediction_split",
+    "heart_split_artifact_name",
+    "load_heart_split",
+    "load_split_artifact",
+    "save_heart_split",
+    "save_split_artifact",
+]

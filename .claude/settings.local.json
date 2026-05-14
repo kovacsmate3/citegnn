@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+      "mcp__plugin_context-mode_context-mode__ctx_execute_file",
+      "mcp__plugin_context-mode_context-mode__ctx_execute",
+      "mcp__plugin_context-mode_context-mode__ctx_index",
+      "mcp__plugin_context-mode_context-mode__ctx_search",
+      "Bash(.venv\\\\Scripts\\\\python.exe -c \"import torch, torch_geometric, scipy, numpy; print\\('torch', torch.__version__\\); print\\('PyG', torch_geometric.__version__\\); print\\('scipy', scipy.__version__\\)\")",
+      "Bash(cd \"/c/Users/Sanyi/Desktop/Iskola/Órák/8.Félév/Graph_Neural_Networks/Practice/Project/citegnn\" && cat artifacts/pubmed_seed1_split.log | tail -30)",
+      "Read(//c/c/Users/Sanyi/Desktop/Iskola/Órák/8.Félév/Graph_Neural_Networks/Practice/Project/citegnn/results/**)",
+      "mcp__plugin_context-mode_context-mode__ctx_fetch_and_index"
+    ]
+  }
+}

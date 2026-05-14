@@ -1,4 +1,4 @@
-"""Run the feature-only pairwise MLP baseline from a saved split artifact."""
+"""Run the feature-only pairwise MLP baseline from a saved HeaRT split."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from citegnn.baselines.feature_only import (
     FeatureOnlyBaselineConfig,
     run_feature_only_baseline,
 )
-from citegnn.data.splits import load_split_artifact
+from citegnn.data.heart_split import load_heart_split
 from citegnn.evaluation import save_and_describe_experiment_result
 
 
@@ -29,6 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--patience", type=int, default=10)
+    parser.add_argument("--eval-every", type=int, default=1)
     parser.add_argument("--batch-size", type=int, default=1024)
     parser.add_argument(
         "--no-progress",
@@ -41,7 +42,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     no_progress = getattr(args, "no_progress", False)
-    split = load_split_artifact(args.split_path)
+    split = load_heart_split(args.split_path)
     config = FeatureOnlyBaselineConfig(
         feature_mode=args.feature_mode,
         hidden_dim=args.hidden_dim,
@@ -50,6 +51,7 @@ def main() -> None:
         weight_decay=args.weight_decay,
         epochs=args.epochs,
         patience=args.patience,
+        eval_every=args.eval_every,
         batch_size=args.batch_size,
         show_progress=not no_progress,
     )

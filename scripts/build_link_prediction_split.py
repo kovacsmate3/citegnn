@@ -1,4 +1,9 @@
-"""Repo-local entrypoint for building deterministic link prediction splits."""
+"""Backwards-compatible alias for the HeaRT split builder CLI.
+
+The legacy random-positive/random-negative pipeline has been replaced
+with the HeaRT protocol; this script now forwards to
+``citegnn.data.smoke.main`` which produces a HeaRT split artifact.
+"""
 
 from __future__ import annotations
 
