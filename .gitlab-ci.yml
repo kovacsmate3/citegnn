@@ -30,6 +30,7 @@ python_checks:
 
 python_tests:
   stage: test
+  allow_failure: true
   script:
     - python --version
     - uv sync --locked

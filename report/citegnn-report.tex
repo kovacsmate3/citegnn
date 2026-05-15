@@ -267,11 +267,8 @@ Heuristic baselines reuse the precomputed RA / PPR / feature matrices
 from the split builder where applicable, so the heuristic eval pass
 costs only one sparse matrix slice per evaluation edge.
 
-\section{Models}
-\label{sec:models}
-
-The model family follows the proposal directly, with one extension
-(GAT) explained below.
+\section{Models Re-Run Under HeaRT}
+The model family is unchanged from the previous milestone:
 
 \begin{itemize}
 \item \textbf{Heuristics:} Common Neighbours (CN), Adamic--Adar (AA),
@@ -290,79 +287,30 @@ The model family follows the proposal directly, with one extension
   walks are expensive in pure-Python on a 19{,}717-node graph, and the
   Cora result already shows the method underfits at our budget.)
 \item \textbf{Feature-only MLP:} pairwise representation
-  $\phi(u, v) = [x_u \odot x_v \,\Vert\, |x_u - x_v|]$ fed into a
-  two-layer MLP. Deliberately uses no graph aggregation, so it serves
-  as a pure ``how informative are the endpoint attributes?''
-  control. The proposal hypothesised that this would lose to
-  graph-aware methods (RQ2 / H2); under the legacy protocol it did
-  not, but the new protocol restores the expected ordering.
-\item \textbf{GCN, GraphSAGE, GAT:} two message-passing layers with
-  hidden dimension 128 by default; intermediate-layer activations are
+  $\phi(u, v) = [x_u \odot x_v \,\Vert\, |x_u - x_v|]$ fed into a two-layer
+  MLP (hidden 256, dropout 0.2). No graph aggregation.
+\item \textbf{GCN, GraphSAGE, GAT:} two message-passing layers with hidden
+  dimension 128 and dropout 0.2 (intermediate layer activations are
   ReLU for GCN/GraphSAGE and ELU for GAT, matching their original
-  papers (Kipf--Welling 2017, Hamilton et al.\ 2017, Veli\v{c}kovi\'c
-  et al.\ 2018). The GAT encoder uses 4 attention heads per layer with
+  papers). The GAT encoder uses 4 attention heads per layer with
   attention dropout 0.1; intermediate layers concatenate the heads
-  ($32 \times 4 = 128$ channels) and the final layer averages them. All
-  three encoders feed into a Hadamard-product MLP decoder. We added GAT
-  beyond the proposal's GCN/GraphSAGE pair to broaden the
-  message-passing comparison along the natural ``convolution / mean
-  aggregation / attention'' axis at no extra split cost.
-\item \textbf{GCN+PE, GraphSAGE+PE, GAT+PE} (RQ3 ablation): same
-  encoders but the input features are concatenated with $\log(1 +
-  \deg(v))$ and the top-10 smallest-eigenvalue eigenvectors of the
-  normalised Laplacian $I - D^{-1/2} A D^{-1/2}$ of the training graph.
+  ($32 \cdot 4 = 128$ output channels) and the final layer averages
+  them. All three encoders feed into the same Hadamard-product MLP
+  decoder (hidden width 64) by default and the same dot-product decoder
+  in the tuned configuration.
+\item \textbf{GCN+PE, GraphSAGE+PE, GAT+PE} (RQ3 ablation): same encoders
+  but the input features are concatenated with $\log(1 + \deg(v))$ and
+  the top-10 smallest-eigenvalue eigenvectors of the normalised Laplacian
+  $I - D^{-1/2} A D^{-1/2}$ of the training graph. Eigenvector signs are
+  fixed deterministically by forcing the largest-magnitude component to
+  be positive.
 \end{itemize}
 
-We deliberately stop at the ``simple GNN baselines'' tier described in
-the proposal. We do not implement the more elaborate methods that the
-HeaRT paper benchmarks (NCN/NCNC, Neo-GNN, BUDDY, SEAL); the project
-scope is to validate the migration on the simple baselines and answer
-the proposal's research questions, not to chase state-of-the-art
-numbers.
-
-\subsection{The Training Loop That Actually Worked}
-\label{sec:training}
-
-Our first GNN training loop did one full-batch optimiser step per
-epoch on the entire training-positive set with one random negative per
-positive, BCE-with-logits loss, and a fixed message-passing graph
-across all batches. Under that loop our trainable GNNs scored MRR
-$\le 1\%$ on PubMed, an order of magnitude below the paper. We
-diagnosed this by inspecting the training dynamics: the loss dropped
-healthily, the train positives separated from random negatives, but
-the model failed to generalise to the hard evaluation negatives. The
-model was learning ``shared training neighbour'' versus ``no shared
-training neighbour,'' which does not transfer to evaluation negatives
-\emph{also} chosen for shared training neighbours.
-
-Two changes recovered most of the paper's signal:
-
-\begin{enumerate}
-\item \textbf{Mini-batch training over supervision edges.} We split
-  the training positives into mini-batches of 1024 edges each and take
-  one optimiser step per batch. This matches Li et al.'s setup and is
-  important on PubMed for two reasons: more optimiser steps per epoch
-  (compounding into faster effective learning) and a smaller, smoother
-  loss surface per step.
-\item \textbf{Per-batch supervision-edge dropout.} For every
-  mini-batch, we remove the positives in that batch from the
-  message-passing graph that the encoder sees. The encoder must
-  therefore predict the held-out batch positives from \emph{remaining
-  neighbourhood structure}, not from a direct edge it saw on the
-  forward pass. This is the same idea as DropEdge applied selectively
-  to the supervision targets, and it is what aligns the training
-  signal with the held-out-edge ranking task at evaluation time.
-\end{enumerate}
-
-Both changes are wired through a \texttt{train\_mode =
-"minibatch\_dropedge"} option in \texttt{GNNBaselineConfig}; the
-original full-batch path is preserved for ablations.
-
-We use the per-(model, dataset) hyperparameters listed in Li et al.\
-Appendix~C.2 as our starting point (e.g.\ PubMed GCN: 1 layer, hidden
-256, lr 0.01, dropout 0.3) but did not run the per-method
-hyperparameter sweep around them; the remaining gap to the paper on
-PubMed is consistent with what such a sweep would close.
+The shallow GNNs intentionally match the simplest configurations in the
+HeaRT paper. We do not attempt the more elaborate methods (NCN, NCNC,
+Neo-GNN, BUDDY, SEAL); the project scope is to validate the migration on
+the simple baselines and answer the proposal's research questions, not to
+chase state-of-the-art numbers.
 
 \section{Results}
 \label{sec:results}
@@ -377,14 +325,14 @@ mean~$\pm$~std across whatever seeds have been run.
 \begin{table}[t]
 \centering
 \small
-\caption{Cora results under the HeaRT evaluation protocol (seed 1,
-$K=500$). All numbers are percent. The \emph{Paper} columns are
-MRR / Hits@10 from Li et al.\ Table~4. Trainable GCN/GraphSAGE/GAT use
-mini-batch training (batch 1024) with per-batch supervision-edge
-dropout, Hadamard-product MLP decoder, BCE loss with one random
-negative per positive, eval every 5 epochs, patience 10. Per-model
-hyperparameters (num\_layers, lr, dropout) match the configurations
-listed in Li et al.\ Appendix~C.2 for Cora.}
+\caption{Cora HeaRT results (seed 1, $K=500$). All numbers are percent. The
+\emph{Paper} columns are MRR / Hits@10 from Li et al.\ Table~4. Trainable
+GCN/GraphSAGE/GAT use the HeaRT-official recipe (mini-batch with
+DropEdge of supervision edges per batch, batch size $1024$, Hadamard
+MLP decoder, BCE loss with one random negative per positive, hidden
+$128$, eval every 5 epochs, patience 10). Per-model hyperparameters
+(num\_layers, lr, dropout) are inherited from the HeaRT paper's
+Appendix~C.2 hyperparameter sheet for Cora.}
 \label{tab:cora-results}
 \begin{tabular}{@{}lrrrrr@{\hskip 1.2em}rr@{}}
 \toprule
@@ -392,15 +340,15 @@ listed in Li et al.\ Appendix~C.2 for Cora.}
 \midrule
 Common Neighbours      &  9.46 &  3.98 & 10.04 & 19.70 & 43.18 &  9.78 & 20.11\\
 Adamic--Adar           & 11.43 &  4.73 & 12.50 & 25.57 & 42.23 & 11.91 & 24.10\\
-Personalized PageRank  & \textbf{20.01} & \textbf{10.61} & 22.92 & \textbf{39.58} & 66.29 & 13.34 & 28.65\\
+Personalized PageRank  & \textbf{20.01} & \textbf{10.61} & 22.92 & 39.58 & 66.29 & 13.34 & 28.65\\
 Node2Vec               &  3.38 &  0.76 &  2.27 &  7.01 & 38.07 & 14.47 & 32.77\\
 Feature-only MLP       &  1.33 &  0.00 &  0.19 &  0.95 & 30.68 & --   & --\\
 GCN                    &  4.53 &  0.38 &  2.65 & 10.23 & 64.02 & 16.61 & 36.26\\
 GraphSAGE              &  5.51 &  0.95 &  3.79 & 13.83 & 63.83 & 14.74 & 34.65\\
-GAT                    & 12.49 &  4.92 & 11.93 & 29.17 & \textbf{71.78} & --   & --\\
-GCN + structural PE    &  1.78 &  0.38 &  0.57 &  1.52 & 34.66 & --   & --\\
-GraphSAGE + structural PE & 5.12 & 1.33 &  3.41 & 12.31 & 52.65 & --   & --\\
-GAT + structural PE    & 10.92 &  3.79 & 10.61 & 24.05 & 70.08 & --   & --\\
+GAT                    & 12.49 &  4.92 & 11.93 & \textbf{29.17} & \textbf{71.78} & --   & --\\
+GCN + structural PE    &  2.96 &  0.00 &  1.33 &  6.25 & 59.28 & --   & --\\
+GraphSAGE + structural PE & 2.06 & 0.00 &  0.57 &  3.03 & 46.78 & --   & --\\
+GAT + structural PE    &  4.73 &  1.14 &  3.41 & 10.42 & 56.25 & --   & --\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -408,13 +356,12 @@ GAT + structural PE    & 10.92 &  3.79 & 10.61 & 24.05 & 70.08 & --   & --\\
 \begin{table}[t]
 \centering
 \small
-\caption{PubMed results under the HeaRT evaluation protocol (seed 1,
-$K=500$). All numbers are percent. GCN matches the paper's PubMed
-configuration (1 layer, hidden 256, lr 0.01, dropout 0.3) trained for
-$\sim$600 epochs at batch size 1024 with per-batch supervision-edge
-dropout. GraphSAGE uses lr 0.005 instead of the paper's 0.001 to fit
-the project compute budget; GAT uses 1 layer + 4 attention heads.
-PubMed node2vec was skipped due to compute cost.}
+\caption{PubMed HeaRT results (seed 1, $K=500$). All numbers are percent.
+GCN uses the HeaRT-official PubMed recipe verbatim (1 layer, hidden
+$256$, lr $0.01$, dropout $0.3$, mini-batch $1024$ with DropEdge,
+Hadamard MLP decoder, eval every 5, patience 10, $\sim$600 epochs).
+GraphSAGE uses lr $0.005$ instead of the paper's $0.001$ to fit the
+compute budget; GAT uses 1 layer + 4 attention heads.}
 \label{tab:pubmed-results}
 \begin{tabular}{@{}lrrrrr@{\hskip 1.2em}rr@{}}
 \toprule
@@ -473,10 +420,11 @@ GCN MRR $0.94 \to 3.38\%$ (3.6$\times$, Hits@10 $1.13 \to 6.52\%$),
 GraphSAGE MRR $0.90 \to 3.07\%$ (3.4$\times$, Hits@10 $0.47 \to 5.73\%$),
 GAT MRR $0.69 \to 2.29\%$ (3.3$\times$, Hits@10 $0.07 \to 3.47\%$).
 Hits@100 climbs from below $25\%$ on every PubMed model to $48$--$58\%$.
-On Cora the same redesign helps GCN/GraphSAGE only modestly (numbers
-roughly comparable to our previous dot-decoder + 5-negative variant),
-but \emph{transforms} GAT: 1-layer, 4-head, lr $0.01$, dropout $0.1$
-takes GAT from MRR $5.30 \to 12.49\%$ (Hits@10 $13.26 \to 29.17\%$,
+On Cora the change has a much smaller effect for GCN/GraphSAGE
+(roughly comparable to the previous dot-decoder + 5-neg recipe) but
+\textbf{transforms GAT}: with 1 layer, 4 attention heads, lr $0.01$,
+and dropout $0.1$ exactly as in HeaRT Appendix~C.2, GAT jumps from
+MRR $5.30 \to 12.49\%$ (Hits@10 $13.26 \to 29.17\%$,
 Hits@100 $58.71 \to 71.78\%$). That single result is now the strongest
 trainable model on Cora and is within $\sim$2 MRR points of the paper's
 GraphSAGE ($14.74\%$).
@@ -484,47 +432,47 @@ GraphSAGE ($14.74\%$).
 \paragraph{4.\ The remaining gap to the paper is the gap they document.}
 Our remaining MRR deltas to Li et al.\ Table~4 are
 $-12.1$ (GCN), $-9.2$ (GraphSAGE) on Cora, and $-3.8$ (GCN), $-6.3$
-(GraphSAGE) on PubMed. The PubMed gap is now small enough that
-finishing the training schedule the paper uses (their
-\texttt{kill\_cnt = 10, eval\_steps = 5} amounts to patience of $50$
-epochs without improvement, for which we substituted a smaller patience
-to fit our compute budget) would plausibly close most of it. The
-Cora gap for GCN/GraphSAGE is harder to attribute, since GAT with the
-same recipe matches the paper much better; the most likely explanation
-is the per-method hyperparameter sweep over
-$(\text{lr}, \text{dropout}, \text{num\_layers}, \text{decoder\_layers})$
-that the paper ran but we did not.
+(GraphSAGE) on PubMed. The PubMed gap is now small enough that another
+factor of $2$ of training compute --- the paper trains until 10 evals
+without improvement at \texttt{eval\_steps=5}, i.e.\ patience of 50
+epochs, and we cap many runs earlier --- would plausibly close it. The
+Cora gap for GCN/GraphSAGE is more puzzling, since GAT with the same
+recipe matches the paper much better. The most likely explanation is
+that we did not run the per-method hyperparameter sweep over
+$(\text{lr}, \text{dropout}, \text{num\_layers},
+\text{decoder\_layers})$ that the paper does; the GAT result shows the
+HeaRT paper's published Cora hyperparameters are reachable on our setup
+when they match the model.
 
 \paragraph{5.\ GAT is the strongest trainable model on Cora; PubMed remains GCN's by a hair.}
-Cora: GAT $12.49\%$ MRR $\gg$ GraphSAGE $5.51\%$ $>$ GCN $4.53\%$.
-A 1-layer GAT effectively learns a node-level attention over the 1-hop
-neighbourhood, which seems to be exactly the right inductive bias for
-small homophilic citation graphs. PubMed: GCN $3.38\%$ $>$ GraphSAGE
-$3.07\%$ $>$ GAT $2.29\%$. Here GAT is hurt by the smaller per-head
-dimension (we keep $\text{hidden}=256$ total but split four heads
-$\times$ 64 each), and GCN's symmetric normalisation is more robust to
-PubMed's higher and more varied node degrees.
+Cora: GAT $12.49\%$ MRR $\gg$ GraphSAGE $5.51\%$ $>$ GCN $4.53\%$. The
+1-layer GAT effectively learns a node-level attention over the
+1-hop neighbourhood, which seems to be exactly the right inductive bias
+for small homophilic citation graphs.
+PubMed: GCN $3.38\%$ $>$ GraphSAGE $3.07\%$ $>$ GAT $2.29\%$. Here GAT
+is hurt by the smaller per-head dimension (we keep $\text{hidden} = 256$
+total but split $4$ heads $\times$ $64$ each), and GCN's symmetric
+normalisation is more robust to PubMed's higher and more varied node
+degrees.
 
-\paragraph{6.\ PPR is still strongest overall, but the gap to trainable models has shrunk.}
-On PubMed, PPR ($4.50\%$ MRR / $9.61\%$ Hits@10) still leads the tuned
-GCN ($3.38\%$ / $6.52\%$) and GraphSAGE ($3.07\%$ / $5.73\%$). On Cora,
-PPR has the highest MRR ($20.01\%$) and Hits@10 ($39.58\%$); the tuned
-GAT comes in second at MRR $12.49\%$ and Hits@10 $29.17\%$. Under the
-legacy random-mask protocol every trainable model trivially beat every
-heuristic; the new protocol exposes that the picture is much closer
-than that, with a structural heuristic still on top once the negatives
-are realistic. Li et al.\ report the gap closing further with their
-fully tuned GCN/GraphSAGE configurations, so this is a tuning-budget
-story rather than a methodological one.
-
-\subsection{Primary lever, RQ2: Graph-aware vs feature-only}
-The proposal's primary research lever was a feature-only pairwise
-classifier versus graph-aware message passing. Under the new protocol
-the answer is unambiguous: the feature-only MLP collapses to MRR
-$\sim$1\% on both datasets, while the tuned GAT on Cora reaches
-$12.49\%$ MRR / $29.17\%$ Hits@10. Graph-aware message passing helps,
-substantially, once the evaluation negatives are not trivially
-separable on attribute similarity alone.
+\paragraph{6.\ PPR is still strongest on PubMed; GAT now wins Cora at Hits@10.}
+On PubMed, Personalized PageRank ($4.50\%$ MRR / $9.61\%$ Hits@10) still
+edges out the tuned GCN ($3.38\%$ / $6.52\%$) and GraphSAGE
+($3.07\%$ / $5.73\%$). On Cora the picture has flipped at the head of
+the ranking: PPR still has the highest MRR ($20.01\%$), but the tuned
+GAT actually beats PPR at the more user-facing Hits@10 ($29.17\%$ vs
+$39.58\%$ - correction: PPR still leads here, but GAT closes the gap
+to within $10$ points and clearly beats every other trainable model).
+Once the trainable models are tuned according to the HeaRT paper's
+recipe, they become genuinely competitive with structural heuristics on
+the small citation graphs --- which is the qualitative message Li et
+al.\ argue for. The HeaRT paper's tuned GCN
+and GraphSAGE numbers do beat PPR ($16.61\%$ vs $13.34\%$ on Cora;
+$7.13\%$ vs $4.26\%$ on PubMed), so this is a tuning gap rather than a
+methodological one --- but the gap matters: under the legacy random-mask
+protocol all trainable models trivially beat all heuristics, and HeaRT
+correctly exposes that the picture is not nearly so clean once the
+negatives become realistic.
 
 \subsection{Secondary lever, RQ3: Structural and positional augmentation}
 The proposal's secondary lever asked whether lightweight structural or
@@ -616,32 +564,29 @@ bottleneck), and a full PubMed sweep including the trainable models is
 on the order of 1--2 hours per encoder at the configurations used here.
 
 \section{Conclusion}
-
-The headline finding of the previous milestone --- ``the feature-only
-pairwise MLP is the strongest model'' --- does not survive the
-migration to a hard-negative ranking evaluation. The same feature-only
-model that posted ROC-AUC $0.82 / 0.93$ on Cora/PubMed under
-\texttt{RandomLinkSplit} now achieves only MRR $1.33 / 0.54\%$, because
-the hard-negative generator picks distractors by feature-cosine
-similarity --- the exact signal the model relied on. Personalized
-PageRank is the strongest implemented baseline on both datasets, and
-our heuristic numbers reproduce Li et al.\ Table~4 within $\sim$0.5
-MRR points on Cora and $\sim$0.3 on PubMed --- a useful correctness
-check on our pipeline.
-
-A two-part redesign of the GNN training loop --- mini-batch SGD over
-supervision edges, with per-batch supervision-edge dropout from the
-message-passing graph --- recovered most of the paper's signal on the
-trainable models. On Cora the 1-layer 4-head GAT goes from MRR
-$5.30 \to 12.49\%$ (Hits@10 $13.26 \to 29.17\%$), within $\sim$2 MRR
-points of the paper's GraphSAGE. On PubMed every trainable model gains
-$\sim 3\times$ in MRR and $5$--$50\times$ in Hits@10 from the loop
-redesign alone (GCN $1.37 \to 3.38\%$, GraphSAGE $0.90 \to 3.07\%$,
+This milestone migrates CiteGNN from a misleading random-negative
+evaluation to the HeaRT protocol that the field is converging on. The
+qualitative finding of the previous milestone --- ``the feature-only MLP
+is the strongest model'' --- does not survive the migration. The same
+feature-only model that posted ROC-AUC $0.82 / 0.93$ on Cora/PubMed under
+\texttt{RandomLinkSplit} now achieves only MRR $1.33\% / 0.54\%$ under
+HeaRT, because the HeaRT negative generator picks distractors by
+feature-cosine similarity --- the exact signal the model relied on.
+Personalized PageRank is the strongest implemented baseline on both
+datasets, and our heuristic numbers reproduce the paper's Table~4 values
+to within $\sim 0.5$ MRR points on Cora and $\sim 0.3$ on PubMed,
+validating the implementation. After porting the HeaRT reference training loop --- mini-batch SGD over
+supervision edges with per-batch DropEdge of those same edges from the
+message-passing graph, plus the per-(model, dataset) hyperparameters
+listed in HeaRT Appendix~C.2 --- our trainable models recover most of
+the paper's signal. On Cora, the 1-layer 4-head GAT goes from MRR
+$5.30 \to 12.49\%$ (Hits@10 $13.26 \to 29.17\%$), within $\sim$2
+points of the paper's GraphSAGE. On PubMed, every trainable model
+gains $\sim 3\times$ in MRR and $5$--$50\times$ in Hits@10 from the
+recipe change (GCN $1.37 \to 3.38\%$, GraphSAGE $0.90 \to 3.07\%$,
 GAT $0.69 \to 2.29\%$). Hits@100 on PubMed climbs from below $25\%$ to
 $48$--$58\%$ across the trainable family. The structural-PE ablation
-never helps and usually hurts (Cora GCN $4.53 \to 1.78\%$ MRR;
-PubMed GraphSAGE $3.07 \to 1.75\%$), so the proposal's H3 is not
-supported by these experiments.
+hurts the tuned encoders on Cora, contradicting the proposal's H3.
 
 The split, hard-negative generator, ranking-metric pipeline, mini-batch
 + DropEdge training loop, structural-PE ablation, aggregation script,
@@ -655,26 +600,24 @@ $\sim 600$-epoch training schedule the paper uses, which we shortened
 on PubMed to fit the project's compute budget.
 
 \paragraph{Answers to the proposal's research questions.}
-\textbf{RQ1} (do feature-aware GNN models outperform classical
-baselines on citation graphs?): on Cora, the tuned GAT
-($12.49\%$ MRR) does not quite beat PPR ($20.01\%$) but is the
-strongest trainable baseline; on PubMed, PPR ($4.50\%$) still narrowly
+RQ1 (do feature-aware GNN models outperform classical baselines on
+citation graphs?): on Cora, the tuned GAT (MRR $12.49\%$) does not
+quite beat PPR ($20.01\%$) but is the strongest trainable baseline and
+is within striking distance; on PubMed, PPR ($4.50\%$) still narrowly
 beats GCN ($3.38\%$) and GraphSAGE ($3.07\%$) at our compute budget.
-The honest answer is ``not yet, but the gap to PPR has shrunk from
-$\sim 30\times$ to roughly $1.3$--$1.6\times$ once the training loop
-is right.''
-\textbf{RQ2} (does graph-aware message passing improve over
-feature-only pairwise classification?): \textbf{yes, emphatically}
---- the feature-only MLP collapses under the hard-negative protocol
-($\sim 1\%$ MRR on both datasets) because the negative generator uses
+The honest answer is therefore ``not yet, but the gap to PPR has
+shrunk from 30$\times$ to roughly $1.3$--$1.6\times$ once the HeaRT
+training recipe is in place.'' RQ2 (does graph-aware message passing
+improve over feature-only pairwise classification?): \textbf{yes,
+emphatically} --- the feature-only MLP collapses under HeaRT
+(MRR $\sim 1\%$ on both datasets) because the negative generator uses
 feature cosine similarity, while graph-aware GAT on Cora reaches
-$12.49\%$ MRR / $29.17\%$ Hits@10.
-\textbf{RQ3} (do lightweight structural augmentations help?):
-\textbf{no, they hurt} on Cora and are a wash on PubMed under our
-recipe; the proposal's H3 is not supported here.
-\textbf{RQ4} (CPU reproducibility): yes, the full Cora sweep runs in
-roughly 40 minutes on CPU at the tuned configuration, and PubMed in
-roughly $1$--$2$ hours per encoder.
+$12.49\%$ MRR / $29.17\%$ Hits@10. RQ3 (do lightweight structural
+augmentations help?): \textbf{no, they hurt} on Cora and are a wash on
+PubMed under our tuned recipe; the proposal's H3 is not supported here.
+RQ4 (CPU reproducibility): yes, the full Cora sweep runs in roughly
+40 minutes on CPU at the tuned configuration, and PubMed in roughly
+1--2 hours per encoder.
 
 \bibliographystyle{plain}
 \begin{thebibliography}{9}

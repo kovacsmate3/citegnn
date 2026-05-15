@@ -132,7 +132,7 @@ side-by-side comparison.
 | --- | --- |
 | `src/citegnn/data/heart_split.py` | HeaRT split + hard-negative generation (RA + PPR + feature cosine, Borda min) |
 | `src/citegnn/data/splits.py` | Backwards-compat shim that re-exports the HeaRT API |
-| `src/citegnn/utils/ranking_metrics.py` | MRR / Hits@K computation (OGB-style optimistic ranking) |
+| `src/citegnn/utils/ranking_metrics.py` | MRR / Hits@K computation with average tie ranking |
 | `src/citegnn/evaluation.py` | HeaRT-aware evaluation pipeline + experiment-result schema |
 | `src/citegnn/baselines/heuristics.py` | CN / AA / PPR baselines (sparse matrix scoring) |
 | `src/citegnn/baselines/node2vec.py` | Node2Vec random-walk embeddings + logistic edge classifier |
@@ -158,4 +158,5 @@ side-by-side comparison.
 - Negatives at evaluation time are *per positive*: for each held-out edge
   `(a, b)`, K/2 negatives are anchored on `a` (`(a, v_j)`) and K/2 on `b`
   (`(u_j, b)`). MRR / Hits@K rank the positive against its K negatives using
-  the OGB convention (ties favour the positive).
+  average tie ranking, so tied positives and negatives receive their average
+  rank rather than automatically favouring the positive.
