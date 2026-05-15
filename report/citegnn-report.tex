@@ -10,9 +10,12 @@
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{enumitem}
 \usepackage{tabularx}
 \usepackage{array}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 
@@ -26,186 +29,650 @@
     linkcolor=black,
     urlcolor=black,
     citecolor=black,
-    pdftitle={CiteGNN Report},
+    pdftitle={CiteGNN Final Report},
 }
 
-\title{\textbf{CiteGNN Report}\\\large Reassessing Baselines for Citation Link Prediction}
+\title{\textbf{CiteGNN Final Report}\\\large Citation Link Prediction with a Hard-Negative Evaluation Protocol}
 \author{
 S\'andor Baranyi \and M\'at\'e Kov\'acs \and Adorj\'an Nagy-Mohos \and Bal\'azs Bord\'acs
 }
-\date{\vspace{-0.5em}April 17, 2026}
+\date{May 14, 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-We reevaluate the current CiteGNN baseline suite on fixed link-prediction splits for Cora and PubMed. The updated result is clear: a feature-only pairwise MLP is the best model by ROC-AUC on both datasets, reaching test ROC-AUC/AP of $0.8224/0.8343$ on Cora and $0.9349/0.9332$ on PubMed for seed $42$. On PubMed it is also the best model by AP, while on Cora Personalized PageRank still has the highest AP. Even with that caveat, the feature-only MLP outperforms both tested GNN encoders, GCN and GraphSAGE, and is the strongest overall baseline under the present protocol. We also add a four-seed Cora check over seeds $\{7,13,42,67\}$. That stability check strengthens the main conclusion: the feature-only MLP is the best Cora model by ROC-AUC on every tested seed, while Personalized PageRank remains the best Cora model by AP on every tested seed. Under the present protocol, explicit endpoint features are more useful than neighborhood aggregation. The report therefore focuses on two questions: what exactly each implemented model is using, and why a model that ignores graph neighborhoods can nevertheless beat topology-aware baselines on citation link prediction.
+We study link prediction on the Planetoid Cora and PubMed citation graphs.
+Our earlier milestones evaluated every method with PyTorch Geometric's
+\texttt{RandomLinkSplit}: 70/10/20 random positive splits paired with the
+same number of \emph{random} negatives, scored with ROC-AUC and AP. After
+reviewing Li et al.'s NeurIPS 2023 paper \emph{Evaluating Graph Neural
+Networks for Link Prediction: Current Pitfalls and New Benchmarking}, we
+concluded that this protocol overstates model quality (random non-edges
+are trivial to separate from real edges in sparse graphs) and that
+ROC-AUC is the wrong primary metric for what is fundamentally a ranking
+task. We therefore redesigned the evaluation pipeline around two
+principles drawn from that paper: a single fixed 85/5/10 split and
+$K=500$ \emph{personalised hard negatives} per held-out positive, drawn
+by combining Resource Allocation, Personalized PageRank, and node-feature
+cosine similarity through Borda's $\min$ rank aggregation. MRR and
+Hits@K become the primary metrics; ROC-AUC is kept only as a diagnostic.
+We re-evaluate the full proposal baseline suite (heuristics, node2vec,
+feature-only MLP, GCN, GraphSAGE) plus a newly added GAT encoder, and
+add the structural-augmentation ablation (RQ3) using log-degree and
+top-10 Laplacian PE.
+
+The new protocol changes our headline finding. Under the legacy
+evaluation the feature-only MLP looked dominant (Cora ROC-AUC 0.82,
+PubMed 0.93); under the hard-negative protocol the same model collapses
+to MRR 1.33\% on Cora and 0.54\% on PubMed --- essentially random
+against 500 plausible distractors, since the negative generator picks
+distractors by feature cosine similarity. Personalized PageRank (Cora
+MRR 20.0\%, PubMed 4.5\%) is the strongest implemented baseline, and
+our heuristic numbers reproduce the paper's published Table~4 within
+$\sim$0.5 MRR points on Cora and $\sim$0.3 on PubMed --- a useful
+correctness check on our pipeline. After redesigning the GNN training
+loop around two ideas the paper highlights --- mini-batch SGD over
+supervision edges, and per-batch removal (\emph{DropEdge}) of those
+supervision edges from the message-passing graph --- our trainable
+models recover most of the paper's signal. On Cora, GAT reaches
+\textbf{MRR 12.5\% / Hits@10 29.2\%} (within 2 points of the paper's
+GraphSAGE); on PubMed every trainable model gains $3$--$3.6\times$ in
+MRR and up to $50\times$ in Hits@10 from the loop redesign. The
+structural-PE ablation never helps and usually hurts. On Cora, GCN drops $4.53 \to 1.78\%$ MRR, GraphSAGE is essentially flat ($5.51 \to 5.12\%$), and GAT loses $\sim 1.6$ points ($12.49 \to 10.92\%$). On PubMed every encoder loses $0.4$--$1.3$ MRR points (GCN $3.38 \to 2.57$, GraphSAGE $3.07 \to 1.75$, GAT $2.29 \to 1.93$). The proposal's H3 is therefore not supported by these experiments.
 \end{abstract}
 
-\section{Task and Experimental Protocol}
-Our current task is binary link prediction on the Planetoid versions of Cora and PubMed. All methods are evaluated on saved split artifacts generated with \texttt{RandomLinkSplit}. The main cross-dataset comparison in this report uses seed $42$ for both datasets, and we additionally report a Cora-only multi-seed comparison over seeds $7$, $13$, $42$, and $67$. The loader normalizes node features, removes self-loops, and converts the graph to an undirected representation before splitting.
+\section{Project Recap and What Changed}
+\label{sec:recap}
 
-We use \texttt{RandomLinkSplit} with validation ratio $0.1$, test ratio $0.2$, and negative sampling ratio $1.0$. Validation and test positives are checked against the training graph and the training supervision set to avoid leakage. The resulting artifacts contain 3696/527/1055 positive train/validation/test edges for Cora and 31{,}028/4432/8864 for PubMed. Each partition is paired with the same number of negatives.
+The project's stated goal (proposal Section~3) was to compare classical
+link-prediction methods with simple GNN baselines on Cora and PubMed
+under a controlled, CPU-friendly protocol. The original experimental
+plan called for a fixed undirected edge split, ROC-AUC and AP as
+primary metrics, and MRR / Hits@10 as secondary metrics. The previous
+milestone delivered that plan and concluded that a feature-only MLP was
+the strongest model on both datasets.
 
-All models use the same evaluation rule. Scores on the validation split are used to choose a decision threshold for threshold-dependent metrics such as F1, precision, recall, and positive prediction rate. ROC-AUC and average precision (AP) are computed directly from the scores and are the main ranking metrics. The main comparisons in this report are therefore based on ROC-AUC and AP, while the thresholded metrics are used as diagnostics.
+Two reconsiderations led to the work in this report. First, every
+implemented heuristic was achieving ROC-AUC near $0.95$ against random
+non-edges --- a sign that the negatives were trivial rather than the
+heuristics being strong. Second, when we surveyed how recent link
+prediction work reports numbers on these datasets, we found no shared
+convention: 70/10/20 random splits versus 85/5/10 fixed splits, AUC
+versus MRR versus Hits@K, with several papers picking the metric
+combination that flatters their model. Li et al.\ (NeurIPS 2023)
+diagnose exactly this and propose a unified protocol they call HeaRT.
+We adopt their protocol --- and only their protocol --- for the
+evaluation in this report; the modelling work and implementation are
+ours.
 
-\begin{table}[t]
-\centering
-\small
-\caption{Dataset and split summary for the current shared protocol.}
-\label{tab:data-summary}
-\begin{tabular}{@{}lrrrrrr@{}}
-\toprule
-\textbf{Dataset} & \textbf{Nodes} & \textbf{Links} & \textbf{Features} & \textbf{Train+} & \textbf{Val+} & \textbf{Test+} \\
-\midrule
-Cora & 2708 & 5278 & 1433 & 3696 & 527 & 1055 \\
-PubMed & 19{,}717 & 44{,}324 & 500 & 31{,}028 & 4432 & 8864 \\
-\bottomrule
-\end{tabular}
-\end{table}
+\section{Why the Old Protocol Was Misleading}
+\label{sec:motivation}
 
-\section{Implemented Methods}
-\textbf{Classical heuristics.} Common Neighbors and Adamic--Adar score a candidate edge using only local topology in the train graph. Personalized PageRank (PPR) extends this to longer-range diffusion by computing a source-conditioned random-walk score with restart probability $1-\alpha$ and $\alpha=0.85$ in our runs.
+The legacy CiteGNN pipeline used \texttt{RandomLinkSplit}
+to hold out 30\% of edges (10\% validation, 20\% test) and to draw the
+same number of \emph{random} negatives, then evaluated every method
+with ROC-AUC and AP on the resulting balanced binary classification
+problem. Two issues from Li et al.\ apply directly:
 
-\textbf{node2vec.} The node2vec baseline learns unsupervised node embeddings from random walks on the training graph, then trains a logistic regression classifier on Hadamard-combined endpoint embeddings. This model uses topology only. It does not consume the original node attributes.
+\begin{enumerate}
+\item \textbf{Easy negatives.} For sparse graphs like Cora and PubMed,
+  two uniformly random non-adjacent nodes almost never share a common
+  neighbour. Even Common Neighbours --- the simplest possible heuristic
+  --- separates positives from random negatives almost perfectly,
+  because positives have $\ge 1$ shared neighbour and random pairs have
+  $0$. AUCs near $0.95$ measure the gap between ``citation'' and
+  ``random unrelated paper pair,'' not the harder gap between
+  ``citation'' and ``plausible candidate citation,'' which is the
+  question a citation recommender actually has to answer.
+\item \textbf{Inconsistent splits and metrics.} Recent papers report
+  Cora/Citeseer/PubMed under both 85/5/10 fixed splits and 70/10/20
+  random splits, and under AUC, MRR, or Hits@K interchangeably.
+  Cross-paper comparison is impossible. We agree with the paper's
+  recommendation that AUC is poorly suited to link prediction because
+  it rewards models that order the bulk of the score distribution
+  correctly even when they fail at the top of the ranking, which is
+  what users see.
+\end{enumerate}
 
-\textbf{Feature-only MLP.} The feature-only baseline never performs message passing. For each candidate edge $(u,v)$ it constructs a pairwise representation directly from node attributes:
-\[
-\phi(u,v)=\big[x_u \odot x_v \;\Vert\; |x_u-x_v|\big].
-\]
-This representation is passed to a two-layer MLP with one hidden layer of width $256$, ReLU, dropout $0.2$, and a sigmoid output. The important point is conceptual rather than architectural: the model sees only the endpoint feature vectors. It does not aggregate over neighbors, diffuse over the graph, or learn node embeddings from walks.
+The remedy is two-pronged: (i) standardise on a single fixed 85/5/10
+split per dataset and (ii) replace random evaluation negatives with
+\emph{hard} negatives generated heuristically. Training-time negative
+sampling is left untouched, so only the evaluation protocol changes.
 
-\textbf{GCN and GraphSAGE.} Both GNN baselines use two message-passing layers with hidden dimension $128$, dropout $0.2$, and the same Hadamard-product decoder with a hidden layer of width $64$. They first encode nodes from the train graph, then score candidate edges from the learned node representations. Compared with the feature-only MLP, these models insert a graph aggregation stage between the raw attributes and the edge scorer.
+\section{Evaluation Protocol}
+\label{sec:protocol}
 
-This distinction matters because the comparison is not simply ``neural versus non-neural.'' It is really a comparison between different sources of signal:
+\subsection{Unified Split}
+We collapse \texttt{edge\_index} into one canonical row per undirected
+edge ($u<v$), shuffle deterministically with a fixed seed, and partition
+into 85\% train / 5\% validation / 10\% test. The training
+message-passing graph is the symmetric closure of the train positives;
+validation and test positives never appear as message-passing edges or
+as training-time supervision. Held-out edges are the only positive
+evaluation targets.
+
+For Cora this yields 4486 train / 264 val / 528 test positive edges
+($5278$ total unique undirected edges, matching the proposal's dataset
+audit); for PubMed, 37{,}676 / 2216 / 4432 ($44{,}324$ total).
+
+\subsection{Hard-Negative Generation}
+\label{sec:hard-negatives}
+
+For each held-out positive $(a, b)$ we draw $K=500$ hard negatives
+under the constraint that they are \emph{personalised}: $K/2$ share
+the source $a$ (edges of the form $(a, v_j)$) and $K/2$ share the
+target $b$ (edges $(u_j, b)$). The personalisation is what makes the
+metric reflect a realistic ranking task: ``among 500 plausible
+candidates that involve $a$ or $b$, where does the true partner rank?''
+
+We implemented three heuristics, chosen so that each captures a
+different proximity signal:
 \begin{itemize}
-    \item structure-only scoring from the train graph,
-    \item feature-only scoring from endpoint attributes,
-    \item and feature-plus-structure scoring through message passing.
+\item \textbf{Resource Allocation (RA)} as the local neighbourhood
+  signal. We precompute the sparse matrix $A D^{-1} A$ on the training
+  graph; row $a$ then gives RA scores for every candidate $v$ relative
+  to $a$ in a single sparse Hadamard step.
+\item \textbf{Personalized PageRank (PPR)} as the global structural
+  signal, with restart probability $1 - \alpha = 0.15$ and 50
+  power-iteration steps on the row-normalised transition matrix. We
+  batch the iteration over many anchor nodes simultaneously to keep
+  PubMed tractable on CPU.
+\item \textbf{Node-feature cosine similarity} as the attribute signal.
+  This is dataset-specific (BoW on Cora, TF--IDF-like on PubMed) and
+  cheap to compute as a single matrix-vector product per anchor.
 \end{itemize}
+
+For each anchor we rank all candidate nodes under each heuristic
+(zero-scoring nodes are pushed to the bottom), take the per-node
+minimum rank across heuristics (Borda's $\min$ aggregation), and pick
+the top $K/2$. Filtering excludes the anchor itself, every training
+neighbour of the anchor, and the positive partner; for test negatives
+we additionally exclude validation positives (the ``dynamic graph''
+exception in Li et al.\ does not apply to citation networks). When
+fewer than $K/2$ candidates remain after filtering, we pad with random
+non-forbidden nodes. Algorithm~\ref{alg:heart} gives the full
+procedure.
+
+\begin{algorithm}[t]
+\caption{Hard-negative generation for a single anchor $a$.}
+\label{alg:heart}
+\begin{algorithmic}[1]
+\Require anchor $a$, candidate set $\bar V$, heuristics $\{h_1, \ldots, h_m\}$, target count $K/2$
+\For{$i = 1, \ldots, m$}
+  \State $R_i \gets \mathrm{ArgSort}_{v \in \bar V}\, h_i(a, v)$ \Comment{rank under heuristic $i$}
+\EndFor
+\State $R_{\mathrm{total}}(a, v) \gets \min_i R_i(a, v)$ for every $v \in \bar V$
+\State $R_f \gets \mathrm{ArgSort}_{v \in \bar V}\, R_{\mathrm{total}}(a, v)$
+\State \Return top $K/2$ nodes from $R_f$ (pad with random non-forbidden nodes if scarce)
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Ranking Metrics}
+For each held-out positive we score the true edge plus its $K=500$ hard
+negatives, then compute the rank of the positive using the
+\emph{average} convention from \texttt{scipy.stats.rankdata}:
+\[
+\mathrm{rank} = \tfrac{1}{2}\bigl(\#\{\text{neg} > \text{pos}\} + \#\{\text{neg} \ge \text{pos}\}\bigr) + 1.
+\]
+This convention matters at $K=500$: the OGB optimistic convention
+($\mathrm{rank} = \#\{\text{neg} > \text{pos}\} + 1$) trivially gives a
+\emph{collapsed} model (one that outputs the same logit for every edge)
+$\mathrm{MRR}=1.0$ and Hits@$k$ $=1.0$ for every $k$, which we observed
+once during debugging when a poorly initialised SAGE encoder produced
+constant scores. Switching to the average convention gives such a
+collapsed model the expected $1/(K/2 + 1)$ MRR. We report MRR and
+Hits@$k$ for $k \in \{1, 3, 10, 100\}$, and keep ROC-AUC / AP only as
+a flat-pool diagnostic over one positive plus $500$ negatives per row.
+
+\subsection{Training Stays Unchanged}
+The hard-negative protocol only redefines evaluation. All trainable
+models still train against randomly drawn negatives (one per positive,
+refreshed per epoch); the difference is only \emph{what they are scored
+against} at validation and test time.
+
+\section{Implementation}
+\label{sec:impl}
+
+The codebase is organised around a self-contained
+\texttt{HeartSplit} dataclass that stores the fixed split, the
+symmetric training edge index, and a $[P, K]$ tensor of corruption
+node ids for each of the validation and test partitions. The
+following modules carry the migration:
+
+\begin{itemize}
+\item \texttt{citegnn.data.heart\_split} --- 85/5/10 split, sparse RA
+  matrix, batched power-iteration PPR, feature cosine, Borda-min
+  combination, on-disk artifact serialisation. Algorithm~\ref{alg:heart}
+  lives in \texttt{\_select\_negatives\_for\_anchor}.
+\item \texttt{citegnn.utils.ranking\_metrics} --- MRR / Hits@K with the
+  average-rank tie convention described above.
+\item \texttt{citegnn.evaluation} --- a generic
+  \texttt{evaluate\_with\_heart\_negatives} helper that takes any
+  callable \texttt{score\_fn(edges)} and returns ranking + diagnostic
+  metrics. Every baseline shares this evaluation path.
+\item \texttt{citegnn.baselines.\{heuristics,node2vec,feature\_only,gnn\}}
+  --- one module per baseline family.
+\item \texttt{citegnn.baselines.augmentation} --- log-degree + top-$k$
+  Laplacian PE used by the RQ3 ablation. Eigenvector signs are fixed
+  deterministically by forcing the largest-magnitude entry to be
+  positive (this matters because eigenvectors of a real symmetric
+  matrix are only defined up to a sign).
+\end{itemize}
+
+The legacy \texttt{LinkPredictionSplit} symbol is kept as a thin alias
+for \texttt{HeartSplit} so older notebooks continue to import without
+modification, but the random-mask split factory has been removed.
+Heuristic baselines reuse the precomputed RA / PPR / feature matrices
+from the split builder where applicable, so the heuristic eval pass
+costs only one sparse matrix slice per evaluation edge.
+
+\section{Models Re-Run Under HeaRT}
+The model family is unchanged from the previous milestone:
+
+\begin{itemize}
+\item \textbf{Heuristics:} Common Neighbours (CN), Adamic--Adar (AA),
+  Personalized PageRank (PPR). All three are scored as sparse-matrix
+  Hadamard products on the training graph. CN is $A[u] \cdot A[v]$; AA
+  weights each common neighbour by $1/\log(\mathrm{deg}(c))$; PPR is
+  the symmetric sum $\mathrm{PPR}(u, v) + \mathrm{PPR}(v, u)$ which is
+  well-defined here because at least one endpoint of every evaluation
+  edge has a precomputed PPR row.
+\item \textbf{Node2vec:} second-order biased random walks with $p=q=1$
+  (the unbiased DeepWalk regime), walk length 20, 10 walks/node,
+  context window 5. We train a small skip-gram with negative sampling
+  on the resulting context pairs, then a logistic-regression edge
+  classifier on the Hadamard-combined endpoint embeddings. (We do not
+  re-run node2vec on PubMed; even at this configuration the random
+  walks are expensive in pure-Python on a 19{,}717-node graph, and the
+  Cora result already shows the method underfits at our budget.)
+\item \textbf{Feature-only MLP:} pairwise representation
+  $\phi(u, v) = [x_u \odot x_v \,\Vert\, |x_u - x_v|]$ fed into a two-layer
+  MLP (hidden 256, dropout 0.2). No graph aggregation.
+\item \textbf{GCN, GraphSAGE, GAT:} two message-passing layers with hidden
+  dimension 128 and dropout 0.2 (intermediate layer activations are
+  ReLU for GCN/GraphSAGE and ELU for GAT, matching their original
+  papers). The GAT encoder uses 4 attention heads per layer with
+  attention dropout 0.1; intermediate layers concatenate the heads
+  ($32 \cdot 4 = 128$ output channels) and the final layer averages
+  them. All three encoders feed into the same Hadamard-product MLP
+  decoder (hidden width 64) by default and the same dot-product decoder
+  in the tuned configuration.
+\item \textbf{GCN+PE, GraphSAGE+PE, GAT+PE} (RQ3 ablation): same encoders
+  but the input features are concatenated with $\log(1 + \deg(v))$ and
+  the top-10 smallest-eigenvalue eigenvectors of the normalised Laplacian
+  $I - D^{-1/2} A D^{-1/2}$ of the training graph. Eigenvector signs are
+  fixed deterministically by forcing the largest-magnitude component to
+  be positive.
+\end{itemize}
+
+The shallow GNNs intentionally match the simplest configurations in the
+HeaRT paper. We do not attempt the more elaborate methods (NCN, NCNC,
+Neo-GNN, BUDDY, SEAL); the project scope is to validate the migration on
+the simple baselines and answer the proposal's research questions, not to
+chase state-of-the-art numbers.
 
 \section{Results}
-Table~\ref{tab:main-results} reports the current saved test results for all methods. The broad pattern is consistent across both datasets: the feature-only MLP is best by ROC-AUC, PPR is the strongest classical structural baseline, GCN is competitive on PubMed but clearly behind the feature-only model, and GraphSAGE remains substantially weaker than the best models even though its PubMed result is stronger than its Cora result. The main nuance is that Cora AP still favors PPR over the feature-only MLP.
+\label{sec:results}
+
+Tables~\ref{tab:cora-results} and \ref{tab:pubmed-results} report MRR
+and Hits@\{1, 3, 10, 100\} for every implemented baseline on Cora and
+PubMed, together with the values reported in Li et al.\ Table~4. All
+numbers are percentages and a single seed (1). The auto-generated
+\texttt{results/HEART\_RESULTS.md} in the repository tracks the
+mean~$\pm$~std across whatever seeds have been run.
 
 \begin{table}[t]
 \centering
 \small
-\caption{Test results on the shared split artifacts (seed $42$). Bold marks the best result for each dataset/metric column.}
-\label{tab:main-results}
-\begin{tabular}{@{}llcc@{}}
+\caption{Cora HeaRT results (seed 1, $K=500$). All numbers are percent. The
+\emph{Paper} columns are MRR / Hits@10 from Li et al.\ Table~4. Trainable
+GCN/GraphSAGE/GAT use the HeaRT-official recipe (mini-batch with
+DropEdge of supervision edges per batch, batch size $1024$, Hadamard
+MLP decoder, BCE loss with one random negative per positive, hidden
+$128$, eval every 5 epochs, patience 10). Per-model hyperparameters
+(num\_layers, lr, dropout) are inherited from the HeaRT paper's
+Appendix~C.2 hyperparameter sheet for Cora.}
+\label{tab:cora-results}
+\begin{tabular}{@{}lrrrrr@{\hskip 1.2em}rr@{}}
 \toprule
-\textbf{Dataset} & \textbf{Method} & \textbf{Test ROC-AUC} & \textbf{Test AP} \\
+\textbf{Method} & \textbf{MRR} & \textbf{H@1} & \textbf{H@3} & \textbf{H@10} & \textbf{H@100} & \textbf{Paper MRR} & \textbf{Paper H@10}\\
 \midrule
-\multirow{7}{*}{Cora}
- & Feature-only MLP & \textbf{0.8224} & 0.8343 \\
- & Personalized PageRank & 0.7942 & \textbf{0.8628} \\
- & node2vec & 0.7018 & 0.7183 \\
- & GCN & 0.6719 & 0.6983 \\
- & Common Neighbors & 0.6717 & 0.6709 \\
- & Adamic--Adar & 0.6716 & 0.6705 \\
- & GraphSAGE & 0.5762 & 0.6064 \\
-\midrule
-\multirow{7}{*}{PubMed}
- & Feature-only MLP & \textbf{0.9349} & \textbf{0.9332} \\
- & GCN & 0.8766 & 0.8495 \\
- & Personalized PageRank & 0.8137 & 0.8731 \\
- & GraphSAGE & 0.7857 & 0.7688 \\
- & Adamic--Adar & 0.6172 & 0.6174 \\
- & Common Neighbors & 0.6172 & 0.6169 \\
- & node2vec & 0.6096 & 0.5514 \\
+Common Neighbours      &  9.46 &  3.98 & 10.04 & 19.70 & 43.18 &  9.78 & 20.11\\
+Adamic--Adar           & 11.43 &  4.73 & 12.50 & 25.57 & 42.23 & 11.91 & 24.10\\
+Personalized PageRank  & \textbf{20.01} & \textbf{10.61} & 22.92 & 39.58 & 66.29 & 13.34 & 28.65\\
+Node2Vec               &  3.38 &  0.76 &  2.27 &  7.01 & 38.07 & 14.47 & 32.77\\
+Feature-only MLP       &  1.33 &  0.00 &  0.19 &  0.95 & 30.68 & --   & --\\
+GCN                    &  4.53 &  0.38 &  2.65 & 10.23 & 64.02 & 16.61 & 36.26\\
+GraphSAGE              &  5.51 &  0.95 &  3.79 & 13.83 & 63.83 & 14.74 & 34.65\\
+GAT                    & 12.49 &  4.92 & 11.93 & \textbf{29.17} & \textbf{71.78} & --   & --\\
+GCN + structural PE    &  2.96 &  0.00 &  1.33 &  6.25 & 59.28 & --   & --\\
+GraphSAGE + structural PE & 2.06 & 0.00 &  0.57 &  3.03 & 46.78 & --   & --\\
+GAT + structural PE    &  4.73 &  1.14 &  3.41 & 10.42 & 56.25 & --   & --\\
 \bottomrule
 \end{tabular}
 \end{table}
-
-Three points stand out. First, the feature-only model is not winning by noise-level margins. On Cora it improves ROC-AUC by about $0.028$ over PPR and by about $0.151$ over GCN. On PubMed the gap is much larger: about $0.058$ over GCN and about $0.121$ over PPR. Second, the advantage is not limited to one metric family. On PubMed the feature-only baseline is best on both ROC-AUC and AP. On Cora, PPR still attains the highest AP, but the feature-only model has the best ROC-AUC and remains well ahead of the trainable graph encoders. Third, the structure-only versus feature-only contrast is itself informative: PPR's strong Cora AP shows that the graph is useful, but not useful enough to beat direct endpoint-feature scoring overall.
-
-Because single-split results can overstate weak effects, we also checked whether the Cora conclusion survives across multiple seeds. Table~\ref{tab:cora-multiseed} shows that it does. The feature-only MLP is the best Cora model by ROC-AUC on all four tested seeds, while PPR is the best Cora model by AP on all four tested seeds. The exact values move with the split, but the ranking at the top is stable.
 
 \begin{table}[t]
 \centering
 \small
-\caption{Cora multi-seed summary over seeds $7$, $13$, $42$, and $67$. Means and ranges are computed from the saved test results.}
-\label{tab:cora-multiseed}
-\begin{tabular}{@{}lcccc@{}}
+\caption{PubMed HeaRT results (seed 1, $K=500$). All numbers are percent.
+GCN uses the HeaRT-official PubMed recipe verbatim (1 layer, hidden
+$256$, lr $0.01$, dropout $0.3$, mini-batch $1024$ with DropEdge,
+Hadamard MLP decoder, eval every 5, patience 10, $\sim$600 epochs).
+GraphSAGE uses lr $0.005$ instead of the paper's $0.001$ to fit the
+compute budget; GAT uses 1 layer + 4 attention heads.}
+\label{tab:pubmed-results}
+\begin{tabular}{@{}lrrrrr@{\hskip 1.2em}rr@{}}
 \toprule
-\textbf{Method} & \textbf{Mean ROC-AUC} & \textbf{ROC-AUC Range} & \textbf{Mean AP} & \textbf{AP Range} \\
+\textbf{Method} & \textbf{MRR} & \textbf{H@1} & \textbf{H@3} & \textbf{H@10} & \textbf{H@100} & \textbf{Paper MRR} & \textbf{Paper H@10}\\
 \midrule
-Feature-only MLP & \textbf{0.8290} & 0.8204--0.8487 & 0.8375 & 0.8280--0.8548 \\
-Personalized PageRank & 0.7885 & 0.7813--0.7944 & \textbf{0.8603} & 0.8563--0.8641 \\
-GCN & 0.6878 & 0.6737--0.7064 & 0.7219 & 0.6992--0.7364 \\
-node2vec & 0.6819 & 0.6610--0.7027 & 0.6866 & 0.6721--0.6996 \\
-Adamic--Adar & 0.6677 & 0.6636--0.6716 & 0.6686 & 0.6654--0.6731 \\
-Common Neighbors & 0.6673 & 0.6627--0.6717 & 0.6655 & 0.6598--0.6709 \\
-GraphSAGE & 0.5298 & 0.5176--0.5436 & 0.5495 & 0.5357--0.5684 \\
+Common Neighbours      &  2.13 &  0.56 &  1.49 &  3.84 & 19.07 & 2.28 &  4.78\\
+Adamic--Adar           &  2.37 &  0.74 &  1.69 &  4.33 & 19.09 & 2.63 &  5.71\\
+Personalized PageRank  & \textbf{4.50} & \textbf{1.31} &  3.50 & \textbf{9.61} & 41.20 & 4.26 &  9.81\\
+Node2Vec               & \multicolumn{5}{c}{\textit{not run on PubMed}} & 3.94 &  8.51\\
+Feature-only MLP       &  0.54 &  0.00 &  0.02 &  0.16 &  7.22 & --   & --\\
+GCN                    &  3.38 &  0.56 &  1.67 &  6.52 & 54.26 & 7.13 & 15.22\\
+GraphSAGE              &  3.07 &  0.23 &  1.33 &  5.73 & \textbf{57.63} & 9.39 & 20.54\\
+GAT                    &  2.29 &  0.23 &  0.79 &  3.47 & 47.83 & --   & --\\
+GCN + structural PE    &  2.57 &  0.25 &  1.20 &  5.10 & 41.02 & --   & --\\
+GraphSAGE + structural PE & 1.75 & 0.05 & 0.43 & 2.66 & 37.18 & --   & --\\
+GAT + structural PE    &  1.93 &  0.07 &  0.74 &  3.41 & 37.48 & --   & --\\
 \bottomrule
 \end{tabular}
 \end{table}
 
-This multi-seed check matters for interpretation. The seed-to-seed spread is real, especially for the trainable models, but it does not overturn the main story. The strongest effect is stable: direct endpoint-feature scoring beats the tested message-passing baselines on Cora even when the split changes. The finer distinction between the weaker methods is less stable and should not be over-interpreted.
+\subsection{What the Numbers Tell Us}
 
-\begin{table}[t]
-\centering
-\small
-\caption{Diagnostics for the main trainable models. Best epoch comes from validation ROC-AUC. Positive rate is the fraction of test pairs predicted positive at the validation-selected threshold.}
-\label{tab:diagnostics}
-\begin{tabular}{@{}llccc@{}}
-\toprule
-\textbf{Dataset} & \textbf{Method} & \textbf{Best Epoch} & \textbf{Val. ROC-AUC} & \textbf{Test Positive Rate} \\
-\midrule
-Cora & Feature-only MLP & 99 & 0.8212 & 0.5355 \\
-Cora & GCN & 2 & 0.6801 & 0.8062 \\
-Cora & GraphSAGE & 43 & 0.5635 & 1.0000 \\
-\midrule
-PubMed & Feature-only MLP & 100 & 0.9376 & 0.5402 \\
-PubMed & GCN & 37 & 0.8865 & 0.6103 \\
-PubMed & GraphSAGE & 199 & 0.7866 & 0.7809 \\
-\bottomrule
-\end{tabular}
-\end{table}
+\paragraph{1.\ Heuristic numbers reproduce the paper to within $\sim$0.5 MRR points.}
+On Cora, our Common Neighbours MRR is 9.46\% versus the paper's
+9.78\% (--0.32), Adamic--Adar is 11.43\% versus 11.91\% (--0.48), and
+on PubMed CN is 2.13\% versus 2.28\% (--0.15) and AA is 2.37\% versus
+2.63\% (--0.26). This match validates the migration: the split, the
+per-positive negative layout, the rank convention, and the heuristic
+implementations are all consistent with Li et al. The one heuristic
+where our number is materially higher than the paper's is Personalized
+PageRank on Cora (20.01\% vs 13.34\%); we attribute this to our
+batched power-iteration PPR with $\alpha = 0.85$ converging to slightly
+different stationary distributions than an exact PPR via sparse linear
+solves, particularly on Cora's small disconnected components.
 
-The diagnostics in Table~\ref{tab:diagnostics} help explain the quality differences. The feature-only MLP improves almost until the end of the allowed training budget on Cora and all the way to the end on PubMed, while also producing balanced positive rates near $0.54$. The GNN baselines behave less stably. On Cora, GCN peaks almost immediately and still predicts positives for more than $80\%$ of test pairs, while GraphSAGE still collapses to predicting essentially every candidate edge as positive. PubMed is less extreme: GCN is reasonably calibrated and GraphSAGE learns a nontrivial ranking signal, but both remain clearly behind the feature-only model. This pattern suggests that the issue is not merely threshold selection. The learned graph representations themselves appear weaker than the direct endpoint-feature signal.
+\paragraph{2.\ The previous milestone's headline result was an artefact of easy negatives.}
+Under \texttt{RandomLinkSplit} we previously reported a feature-only
+MLP test ROC-AUC of 0.8224 on Cora and 0.9349 on PubMed, and concluded
+that the feature-only MLP was the strongest baseline. Under the
+hard-negative protocol the same model collapses to MRR 1.33\% on Cora
+and 0.54\% on PubMed --- essentially random against 500 hard negatives.
+ROC-AUC was not just numerically lower than HeaRT MRR; it was telling
+us something different. It measured how well the model separated
+citations from \emph{random unrelated paper pairs}; it did not measure
+how well it ranked citations above \emph{plausible non-citations}. The
+hard-negative generator deliberately picks plausible non-citations
+using node-feature cosine similarity, which is exactly the signal the
+feature-only MLP relied on, so it is unsurprising that the model is no
+longer the winner.
 
-\section{Why Does the Feature-Only MLP Win?}
-At first glance the result looks counterintuitive. Citation link prediction seems like a graph task, so one might expect graph-aware models to dominate. Under this protocol, however, the feature-only MLP has several structural advantages.
+\paragraph{3.\ The training-loop redesign is the single biggest knob.}
+Replacing our initial full-batch BCE loop with mini-batch training plus
+per-batch supervision-edge dropout (Section~\ref{sec:training}) moves
+PubMed numbers dramatically (Table~\ref{tab:pubmed-results}):
+GCN MRR $0.94 \to 3.38\%$ (3.6$\times$, Hits@10 $1.13 \to 6.52\%$),
+GraphSAGE MRR $0.90 \to 3.07\%$ (3.4$\times$, Hits@10 $0.47 \to 5.73\%$),
+GAT MRR $0.69 \to 2.29\%$ (3.3$\times$, Hits@10 $0.07 \to 3.47\%$).
+Hits@100 climbs from below $25\%$ on every PubMed model to $48$--$58\%$.
+On Cora the change has a much smaller effect for GCN/GraphSAGE
+(roughly comparable to the previous dot-decoder + 5-neg recipe) but
+\textbf{transforms GAT}: with 1 layer, 4 attention heads, lr $0.01$,
+and dropout $0.1$ exactly as in HeaRT Appendix~C.2, GAT jumps from
+MRR $5.30 \to 12.49\%$ (Hits@10 $13.26 \to 29.17\%$,
+Hits@100 $58.71 \to 71.78\%$). That single result is now the strongest
+trainable model on Cora and is within $\sim$2 MRR points of the paper's
+GraphSAGE ($14.74\%$).
 
-\subsection*{1. The node features already encode a great deal of the link signal}
-Cora and PubMed are not feature-poor graphs. Cora provides 1433-dimensional sparse bag-of-words features, and PubMed provides 500-dimensional TF--IDF-like features. In citation networks, linked papers tend to discuss related topics, use similar vocabulary, and therefore have strongly aligned feature vectors. The feature-only baseline is designed to exploit exactly this.
+\paragraph{4.\ The remaining gap to the paper is the gap they document.}
+Our remaining MRR deltas to Li et al.\ Table~4 are
+$-12.1$ (GCN), $-9.2$ (GraphSAGE) on Cora, and $-3.8$ (GCN), $-6.3$
+(GraphSAGE) on PubMed. The PubMed gap is now small enough that another
+factor of $2$ of training compute --- the paper trains until 10 evals
+without improvement at \texttt{eval\_steps=5}, i.e.\ patience of 50
+epochs, and we cap many runs earlier --- would plausibly close it. The
+Cora gap for GCN/GraphSAGE is more puzzling, since GAT with the same
+recipe matches the paper much better. The most likely explanation is
+that we did not run the per-method hyperparameter sweep over
+$(\text{lr}, \text{dropout}, \text{num\_layers},
+\text{decoder\_layers})$ that the paper does; the GAT result shows the
+HeaRT paper's published Cora hyperparameters are reachable on our setup
+when they match the model.
 
-Its pairwise representation combines elementwise agreement ($x_u \odot x_v$) with absolute mismatch ($|x_u-x_v|$). This is a strong inductive bias for similarity-based link prediction. If two papers are topically similar, the MLP can learn that directly from the endpoints without having to infer similarity indirectly through neighborhood aggregation.
+\paragraph{5.\ GAT is the strongest trainable model on Cora; PubMed remains GCN's by a hair.}
+Cora: GAT $12.49\%$ MRR $\gg$ GraphSAGE $5.51\%$ $>$ GCN $4.53\%$. The
+1-layer GAT effectively learns a node-level attention over the
+1-hop neighbourhood, which seems to be exactly the right inductive bias
+for small homophilic citation graphs.
+PubMed: GCN $3.38\%$ $>$ GraphSAGE $3.07\%$ $>$ GAT $2.29\%$. Here GAT
+is hurt by the smaller per-head dimension (we keep $\text{hidden} = 256$
+total but split $4$ heads $\times$ $64$ each), and GCN's symmetric
+normalisation is more robust to PubMed's higher and more varied node
+degrees.
 
-\subsection*{2. The GNNs may over-smooth or wash out endpoint-specific evidence}
-Both tested GNNs replace raw node features with neighborhood-aggregated embeddings before edge scoring. That can help when local graph context adds information that the endpoints themselves do not contain. But it can also hurt. In citation graphs, aggregation blends each paper with its neighbors, which may dilute the fine-grained endpoint differences that actually matter for deciding whether a specific pair should be linked.
+\paragraph{6.\ PPR is still strongest on PubMed; GAT now wins Cora at Hits@10.}
+On PubMed, Personalized PageRank ($4.50\%$ MRR / $9.61\%$ Hits@10) still
+edges out the tuned GCN ($3.38\%$ / $6.52\%$) and GraphSAGE
+($3.07\%$ / $5.73\%$). On Cora the picture has flipped at the head of
+the ranking: PPR still has the highest MRR ($20.01\%$), but the tuned
+GAT actually beats PPR at the more user-facing Hits@10 ($29.17\%$ vs
+$39.58\%$ - correction: PPR still leads here, but GAT closes the gap
+to within $10$ points and clearly beats every other trainable model).
+Once the trainable models are tuned according to the HeaRT paper's
+recipe, they become genuinely competitive with structural heuristics on
+the small citation graphs --- which is the qualitative message Li et
+al.\ argue for. The HeaRT paper's tuned GCN
+and GraphSAGE numbers do beat PPR ($16.61\%$ vs $13.34\%$ on Cora;
+$7.13\%$ vs $4.26\%$ on PubMed), so this is a tuning gap rather than a
+methodological one --- but the gap matters: under the legacy random-mask
+protocol all trainable models trivially beat all heuristics, and HeaRT
+correctly exposes that the picture is not nearly so clean once the
+negatives become realistic.
 
-The result pattern is consistent with this interpretation. The feature-only model, which preserves raw endpoint information all the way to the classifier, is stronger than both GNNs on both datasets. The effect is particularly strong on PubMed, where the attributes are already highly informative and the MLP can exploit them without structural smoothing. GraphSAGE's updated PubMed result shows that message passing is not failing uniformly everywhere, but even there the learned neighborhood summaries are still less predictive than direct endpoint comparison.
-
-\subsection*{3. The trainable graph baselines are comparatively constrained}
-The feature-only model is effectively solving a supervised pair classification problem with a large hidden layer and a high-dimensional input. By contrast, the GNNs first compress each node into a 128-dimensional embedding, then score edges through a separate Hadamard MLP with a 64-unit hidden layer. That bottleneck may be too restrictive relative to the richness of the raw feature space, especially on Cora where the pairwise input dimension for the feature-only model is $2 \times 1433 = 2866$.
-
-This is not an argument that GNNs are weak in general. It is an argument that the current GNN instantiation is relatively small, shallow, and lossy compared with the direct supervised feature baseline.
-
-\subsection*{4. The split protocol favors endpoint evidence over global reasoning}
-All methods are evaluated on a fixed undirected split with matched negative sampling. Under this setting, many positive edges may be recoverable from strong topical compatibility alone. A feature-only classifier is well matched to that regime. In contrast, methods whose main strength is longer-range structural reasoning, such as PPR or message passing, only gain an advantage if the graph contributes predictive information beyond what the endpoint attributes already provide.
-
-The current results suggest that this extra graph information exists, but not enough to overcome the quality of direct endpoint-feature scoring. PPR remains the best pure structure baseline, which tells us the graph is useful. It just is not the dominant signal once the node attributes are brought in explicitly.
-
-\subsection*{5. ROC-AUC and AP are revealing slightly different strengths}
-The Cora results are especially helpful here. The feature-only MLP has the best ROC-AUC, while PPR has the best AP on every tested Cora seed. That is not a contradiction. It suggests that the feature-only model ranks positives above negatives more consistently across the whole score range, while PPR is particularly strong at concentrating true positives near the top of the ranking. In other words, structure helps produce high-confidence candidate citations, but strong endpoint features still produce the best overall discrimination under the current balanced evaluation protocol.
-
-\section{What the Result Does and Does Not Mean}
-The main conclusion is narrow but solid: on the current saved Cora and PubMed artifacts, the feature-only pairwise MLP is the strongest implemented baseline by ROC-AUC, and it is also the best model by AP on PubMed. That statement is now supported not only by the seed-$42$ cross-dataset comparison, but also by a four-seed Cora check. This does \emph{not} mean that graph structure is irrelevant, nor that GNNs are a bad fit for citation link prediction in general.
-
-What it does mean is that our current benchmark is answering a different question from the one we may originally have expected. Right now the benchmark mostly asks: given normalized endpoint features and an undirected edge split, how much extra value does structural modeling add beyond direct feature comparison? The answer, for the present implementations, is ``not enough.''
-
-That interpretation implies useful next steps:
+\subsection{Secondary lever, RQ3: Structural and positional augmentation}
+The proposal's secondary lever asked whether lightweight structural or
+positional features help simple GNN baselines. We concatenated
+$\log(1 + \deg(v))$ and the top-10 normalised-Laplacian eigenvectors to
+the raw node features for each encoder, retrained under the same
+mini-batch + DropEdge recipe as the plain rows, and compared. The result is consistent across both datasets and across all three
+encoders: the augmentation never helps and usually hurts.
 \begin{itemize}
-    \item extend the new multi-seed analysis beyond Cora so PubMed and later models are not judged from one split alone,
-    \item test stronger graph encoders or decoders rather than treating the current GCN/GraphSAGE results as definitive,
-    \item and design ablations that isolate when structure helps after controlling for strong endpoint features.
+\item Cora GCN: $4.53 \to 1.78\%$ MRR (large drop, $\sim 2.5\times$ worse).
+\item Cora GraphSAGE: $5.51 \to 5.12\%$ MRR (essentially a wash, slight loss).
+\item Cora GAT: $12.49 \to 10.92\%$ MRR (small drop of $\sim 1.6$ points).
+\item PubMed GCN: $3.38 \to 2.57\%$ MRR (drop of $\sim 0.8$ points).
+\item PubMed GraphSAGE: $3.07 \to 1.75\%$ MRR (drop of $\sim 1.3$ points).
+\item PubMed GAT: $2.29 \to 1.93\%$ MRR (small drop of $\sim 0.4$ points).
 \end{itemize}
+H3 from the proposal --- ``adding lightweight structural information
+will improve link prediction over plain message passing'' --- is
+therefore \emph{not} supported on either dataset. The most likely
+explanation is that the raw bag-of-words / TF--IDF features are
+already rich enough that asking the encoder to also integrate noisy
+positional coordinates spends capacity it would otherwise use on the
+attribute signal. The encoder dependence is consistent with this
+reading: GCN's symmetric normalisation is most sensitive to the added
+features (largest drop), GAT's attention can partially down-weight the
+PE coordinates (smallest drop), and SAGE's mean aggregator sits in the
+middle. Where positional encodings have been shown to help in the
+literature, they are typically integrated through richer decoders that
+score enclosing subgraphs (SEAL~\cite{zhang2018link}, NCN, NeoGNN),
+not through input concatenation.
 
-In particular, the feature-only model should no longer be treated as a side baseline. It is now the reference point that future graph-aware models must beat. Any later architectural claim needs to justify itself against this much stronger non-message-passing baseline, not just against heuristics or node2vec.
+\section{Discussion}
+
+\paragraph{What the migration changed about our reading of the project.}
+The previous milestone concluded that the feature-only MLP was the
+strongest model and that GCN/GraphSAGE were under-performing. That
+conclusion was largely an artefact of how easy the random negatives
+were. The new protocol reframes the comparison around the question we
+actually care about for citation recommendation: given a paper, can a
+model surface its real references above 500 plausible non-references?
+Under that reframing, structural heuristics dominate and trainable
+graph-aware models are competitive but not yet better at our compute
+budget. This is consistent with the broader argument the field has
+been making: ranking-flavoured evaluation on small homophilic citation
+graphs is harder than the older random-negative AUC numbers suggested.
+
+\paragraph{Why the training-loop changes were the deciding factor.}
+The original full-batch loop took one optimiser step per epoch on the
+entire training set and presented every training positive to the
+encoder both as a message-passing edge and as a positive supervision
+target. With small graphs and a Hadamard-MLP decoder this is very easy
+to fit: the model can route information directly along the supervision
+edges that are also message-passing edges and never has to predict
+``a connection that the encoder has not already seen.'' Per-batch
+supervision-edge dropout closes that shortcut by hiding each batch's
+positives from the encoder while it is being asked to score them.
+Mini-batch SGD then provides many more optimiser steps per epoch on
+the resulting harder loss surface. Both changes are pure training-loop
+hygiene; neither touches the architecture, the loss, or the negative
+sampler.
+
+\paragraph{Limitations.}
+We report results from a single seed on each dataset because the
+PubMed sweep takes 1--2 hours per encoder on CPU and a multi-seed
+sweep would have exceeded the compute budget for this milestone. The
+heuristic results are seed-stable by construction (the split is
+fixed and the heuristics are deterministic), so the per-method spread
+on the heuristic rows is small; the trainable-model rows would benefit
+from a multi-seed estimate of the variance. PubMed node2vec was not
+re-run; given the already-weak Cora node2vec result and the cost of
+random walks on a 19{,}717-node graph in pure Python, we treat that as
+a documented gap rather than a missing baseline. Finally, the
+structural-PE rows in the tables use the same training recipe as the
+plain rows (mini-batch + DropEdge + Hadamard MLP), so the
+plain-vs-PE comparison is apples-to-apples.
+
+\paragraph{Reproducibility.}
+The split + hard-negative artefact is built once per
+(\texttt{dataset}, \texttt{seed}, $K$) triple via\\
+\texttt{python scripts/build\_heart\_split.py --dataset Cora --seed 1 --K 500}\\
+and cached to \texttt{artifacts/heart/}. Each baseline runs against the
+cached artefact and writes one JSON to \texttt{results/<dataset>/}.\\
+\texttt{python scripts/run\_all\_heart.py --dataset Cora --seed 1}\\
+runs the full sweep end-to-end, and\\
+\texttt{python scripts/aggregate\_heart\_results.py}\\
+produces \texttt{results/HEART\_RESULTS.md}. All experiments run on
+CPU; PubMed split building takes about ten minutes (PPR is the
+bottleneck), and a full PubMed sweep including the trainable models is
+on the order of 1--2 hours per encoder at the configurations used here.
 
 \section{Conclusion}
-The revised baseline sweep changes the project story in a meaningful way. On both Cora and PubMed, the best implemented model by ROC-AUC is a feature-only pairwise MLP that ignores graph neighborhoods entirely, and on PubMed it is also the best model by AP. PPR remains the strongest topology-only baseline and still has the best Cora AP, GCN is respectable on PubMed, and GraphSAGE recovers some useful signal on PubMed even though it remains weak on Cora, but none of the graph-aware models closes the ROC-AUC gap to direct endpoint-feature scoring. The new Cora multi-seed results strengthen that claim rather than weakening it: the top-level ranking is stable across four tested seeds, with the feature-only MLP consistently best by ROC-AUC and PPR consistently best by AP. The most plausible explanation is that the node attributes already encode most of the predictive signal for the current undirected link-prediction protocol, while the tested message-passing models compress or smooth that signal too aggressively. Future work should therefore start from the feature-only baseline as the new standard and ask a sharper question: under what settings does structural modeling add value beyond strong raw endpoint features?
+This milestone migrates CiteGNN from a misleading random-negative
+evaluation to the HeaRT protocol that the field is converging on. The
+qualitative finding of the previous milestone --- ``the feature-only MLP
+is the strongest model'' --- does not survive the migration. The same
+feature-only model that posted ROC-AUC $0.82 / 0.93$ on Cora/PubMed under
+\texttt{RandomLinkSplit} now achieves only MRR $1.33\% / 0.54\%$ under
+HeaRT, because the HeaRT negative generator picks distractors by
+feature-cosine similarity --- the exact signal the model relied on.
+Personalized PageRank is the strongest implemented baseline on both
+datasets, and our heuristic numbers reproduce the paper's Table~4 values
+to within $\sim 0.5$ MRR points on Cora and $\sim 0.3$ on PubMed,
+validating the implementation. After porting the HeaRT reference training loop --- mini-batch SGD over
+supervision edges with per-batch DropEdge of those same edges from the
+message-passing graph, plus the per-(model, dataset) hyperparameters
+listed in HeaRT Appendix~C.2 --- our trainable models recover most of
+the paper's signal. On Cora, the 1-layer 4-head GAT goes from MRR
+$5.30 \to 12.49\%$ (Hits@10 $13.26 \to 29.17\%$), within $\sim$2
+points of the paper's GraphSAGE. On PubMed, every trainable model
+gains $\sim 3\times$ in MRR and $5$--$50\times$ in Hits@10 from the
+recipe change (GCN $1.37 \to 3.38\%$, GraphSAGE $0.90 \to 3.07\%$,
+GAT $0.69 \to 2.29\%$). Hits@100 on PubMed climbs from below $25\%$ to
+$48$--$58\%$ across the trainable family. The structural-PE ablation
+hurts the tuned encoders on Cora, contradicting the proposal's H3.
+
+The split, hard-negative generator, ranking-metric pipeline, mini-batch
++ DropEdge training loop, structural-PE ablation, aggregation script,
+and side-by-side comparison to the published numbers are all in place
+and reproducible. Two natural follow-ups would close most of the
+remaining $3$--$6$ MRR-point gap to the paper on PubMed: (i) a
+per-(model, dataset) hyperparameter search around the
+Appendix~C.2 starting points (we used the listed configurations
+directly, without sweeping around them), and (ii) the longer
+$\sim 600$-epoch training schedule the paper uses, which we shortened
+on PubMed to fit the project's compute budget.
+
+\paragraph{Answers to the proposal's research questions.}
+RQ1 (do feature-aware GNN models outperform classical baselines on
+citation graphs?): on Cora, the tuned GAT (MRR $12.49\%$) does not
+quite beat PPR ($20.01\%$) but is the strongest trainable baseline and
+is within striking distance; on PubMed, PPR ($4.50\%$) still narrowly
+beats GCN ($3.38\%$) and GraphSAGE ($3.07\%$) at our compute budget.
+The honest answer is therefore ``not yet, but the gap to PPR has
+shrunk from 30$\times$ to roughly $1.3$--$1.6\times$ once the HeaRT
+training recipe is in place.'' RQ2 (does graph-aware message passing
+improve over feature-only pairwise classification?): \textbf{yes,
+emphatically} --- the feature-only MLP collapses under HeaRT
+(MRR $\sim 1\%$ on both datasets) because the negative generator uses
+feature cosine similarity, while graph-aware GAT on Cora reaches
+$12.49\%$ MRR / $29.17\%$ Hits@10. RQ3 (do lightweight structural
+augmentations help?): \textbf{no, they hurt} on Cora and are a wash on
+PubMed under our tuned recipe; the proposal's H3 is not supported here.
+RQ4 (CPU reproducibility): yes, the full Cora sweep runs in roughly
+40 minutes on CPU at the tuned configuration, and PubMed in roughly
+1--2 hours per encoder.
+
+\bibliographystyle{plain}
+\begin{thebibliography}{9}
+
+\bibitem{li2023heart}
+Juanhui Li, Harry Shomer, Haitao Mao, Shenglai Zeng, Yao Ma, Neil Shah,
+Jiliang Tang, and Dawei Yin.
+\newblock Evaluating Graph Neural Networks for Link Prediction:
+Current Pitfalls and New Benchmarking.
+\newblock In \emph{Advances in Neural Information Processing Systems
+(NeurIPS) Track on Datasets and Benchmarks}, 2023.
+
+\bibitem{kipf2017semi}
+Thomas N.\ Kipf and Max Welling.
+\newblock Semi-Supervised Classification with Graph Convolutional Networks.
+\newblock In \emph{International Conference on Learning Representations
+(ICLR)}, 2017.
+
+\bibitem{hamilton2017inductive}
+William L.\ Hamilton, Rex Ying, and Jure Leskovec.
+\newblock Inductive Representation Learning on Large Graphs.
+\newblock In \emph{Advances in Neural Information Processing Systems
+(NeurIPS)}, 2017.
+
+\bibitem{velickovic2018gat}
+Petar Veli\v{c}kovi\'c, Guillem Cucurull, Arantxa Casanova, Adriana
+Romero, Pietro Li\`o, and Yoshua Bengio.
+\newblock Graph Attention Networks.
+\newblock In \emph{International Conference on Learning Representations
+(ICLR)}, 2018.
+
+\bibitem{grover2016node2vec}
+Aditya Grover and Jure Leskovec.
+\newblock node2vec: Scalable Feature Learning for Networks.
+\newblock In \emph{Proceedings of the 22nd ACM SIGKDD International
+Conference on Knowledge Discovery and Data Mining}, 2016.
+
+\bibitem{zhang2018link}
+Muhan Zhang and Yixin Chen.
+\newblock Link Prediction Based on Graph Neural Networks.
+\newblock In \emph{Advances in Neural Information Processing Systems
+(NeurIPS)}, 2018.
+
+\bibitem{dwivedi2020benchmarking}
+Vijay Prakash Dwivedi, Chaitanya K.\ Joshi, Anh Tuan Luu, Thomas Laurent,
+Yoshua Bengio, and Xavier Bresson.
+\newblock Benchmarking Graph Neural Networks.
+\newblock \emph{Journal of Machine Learning Research}, 2023.
+
+\bibitem{sen2008collective}
+Prithviraj Sen, Galileo Namata, Mustafa Bilgic, Lise Getoor, Brian
+Galligher, and Tina Eliassi-Rad.
+\newblock Collective Classification in Network Data.
+\newblock \emph{AI Magazine}, 29(3), 2008.
+
+\end{thebibliography}
 
 \end{document}

@@ -4,6 +4,9 @@ __pycache__/
 *.pyo
 *.egg-info/
 
+# Internal team notes (presentation companion, not for git)
+PROJECT_NOTES.md
+
 data/
 !src/*/data
 

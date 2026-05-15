@@ -1,0 +1,45 @@
+{
+  "dataset": "Cora",
+  "method": "adamic_adar",
+  "params": {
+    "K": 500,
+    "num_test_positives": 528,
+    "num_train_positives": 4486,
+    "num_val_positives": 264,
+    "split_seed": 1,
+    "train_graph_edges": 8972
+  },
+  "seed": 1,
+  "test": {
+    "average_precision": 0.009883204459702605,
+    "f1": 0.0,
+    "hits_at_1": 0.04734848484848485,
+    "hits_at_10": 0.2556818181818182,
+    "hits_at_100": 0.42234848484848486,
+    "hits_at_3": 0.125,
+    "mrr": 0.11434733000155034,
+    "num_negatives_per_positive": 500.0,
+    "num_positives": 528.0,
+    "positive_rate": 0.0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "roc_auc": 0.6867819566402663,
+    "threshold": 0.0
+  },
+  "validation": {
+    "average_precision": 0.00972863364381477,
+    "f1": 0.0,
+    "hits_at_1": 0.045454545454545456,
+    "hits_at_10": 0.22727272727272727,
+    "hits_at_100": 0.4128787878787879,
+    "hits_at_3": 0.12121212121212122,
+    "mrr": 0.1075251494095847,
+    "num_negatives_per_positive": 500.0,
+    "num_positives": 264.0,
+    "positive_rate": 0.0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "roc_auc": 0.6742138860192838,
+    "threshold": 0.0
+  }
+}

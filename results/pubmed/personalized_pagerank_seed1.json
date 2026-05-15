@@ -1,0 +1,47 @@
+{
+  "dataset": "PubMed",
+  "method": "personalized_pagerank",
+  "params": {
+    "K": 500,
+    "num_test_positives": 4432,
+    "num_train_positives": 37676,
+    "num_val_positives": 2216,
+    "ppr_alpha": 0.85,
+    "ppr_iterations": 50,
+    "split_seed": 1,
+    "train_graph_edges": 75352
+  },
+  "seed": 1,
+  "test": {
+    "average_precision": 0.00626481715557132,
+    "f1": 0.0,
+    "hits_at_1": 0.013086642599277979,
+    "hits_at_10": 0.09611913357400723,
+    "hits_at_100": 0.4120036101083033,
+    "hits_at_3": 0.03497292418772563,
+    "mrr": 0.04501214312212439,
+    "num_negatives_per_positive": 500.0,
+    "num_positives": 4432.0,
+    "positive_rate": 0.0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "roc_auc": 0.6083714577543204,
+    "threshold": 0.0
+  },
+  "validation": {
+    "average_precision": 0.007057599699827045,
+    "f1": 0.0,
+    "hits_at_1": 0.011732851985559567,
+    "hits_at_10": 0.11326714801444043,
+    "hits_at_100": 0.42057761732851984,
+    "hits_at_3": 0.03835740072202166,
+    "mrr": 0.04773583151740229,
+    "num_negatives_per_positive": 500.0,
+    "num_positives": 2216.0,
+    "positive_rate": 0.0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "roc_auc": 0.6146439064353113,
+    "threshold": 0.0
+  }
+}

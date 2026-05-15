@@ -1,43 +1,39 @@
-"""Run heuristic link-prediction baselines from a saved split artifact."""
+"""Run heuristic link-prediction baselines from a saved HeaRT split."""
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
 
-from citegnn.baselines.heuristics import HeuristicMethod, run_heuristic_baseline
-from citegnn.data.splits import load_split_artifact
+from citegnn.baselines.heuristics import (
+    HeuristicConfig,
+    HeuristicMethod,
+    run_heuristic_baseline,
+)
+from citegnn.data.heart_split import (
+    DEFAULT_PPR_ALPHA,
+    DEFAULT_PPR_ITERATIONS,
+    load_heart_split,
+)
 from citegnn.evaluation import save_and_describe_experiment_result
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse CLI arguments for the heuristic baseline runner."""
-
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--split-path",
         type=Path,
         required=True,
-        help="Path to a saved link-prediction split artifact (.pt).",
+        help="Path to a saved HeaRT split artifact (.pt).",
     )
     parser.add_argument(
         "--method",
         choices=["all", *(method.value for method in HeuristicMethod)],
         default="all",
-        help="Heuristic baseline to run.",
     )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path("results"),
-        help="Directory where experiment result JSON files are written.",
-    )
-    parser.add_argument(
-        "--ppr-alpha",
-        type=float,
-        default=0.85,
-        help="Teleport probability parameter for personalized PageRank.",
-    )
+    parser.add_argument("--output-dir", type=Path, default=Path("results"))
+    parser.add_argument("--ppr-alpha", type=float, default=DEFAULT_PPR_ALPHA)
+    parser.add_argument("--ppr-iterations", type=int, default=DEFAULT_PPR_ITERATIONS)
     return parser.parse_args()
 
 
@@ -48,20 +44,17 @@ def _selected_methods(method_name: str) -> list[HeuristicMethod]:
 
 
 def main() -> None:
-    """Run one or more heuristic baselines from a fixed split artifact."""
-
     args = parse_args()
-    split = load_split_artifact(args.split_path)
+    split = load_heart_split(args.split_path)
+    config = HeuristicConfig(
+        ppr_alpha=args.ppr_alpha,
+        ppr_iterations=args.ppr_iterations,
+    )
 
     for method in _selected_methods(args.method):
-        result = run_heuristic_baseline(
-            split,
-            method=method,
-            ppr_alpha=args.ppr_alpha,
-        )
+        result = run_heuristic_baseline(split, method=method, config=config)
         _, summary = save_and_describe_experiment_result(
-            result,
-            output_dir=args.output_dir,
+            result, output_dir=args.output_dir
         )
         print(summary)
 
