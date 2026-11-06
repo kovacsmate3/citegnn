@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "citegnn"
 version = "0.1.0"
-description = "Add your description here"
+description = "Link prediction on the Cora and PubMed citation networks with PyTorch Geometric, evaluated under the HeaRT hard-negative protocol."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
