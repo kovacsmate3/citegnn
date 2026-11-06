@@ -3,6 +3,10 @@
 
 # CiteGNN
 
+This repository is a mirror of a four-person course project for the MSc Graph
+Neural Networks course at ELTE (Eötvös Loránd University), spring 2026, by
+Sándor Baranyi, Máté Kovács, Adorján Nagy-Mohos and Balázs Bordács.
+
 Link prediction on citation networks (Cora, PubMed) under the **HeaRT** evaluation
 protocol from Li et al. (NeurIPS 2023), *"Evaluating Graph Neural Networks for Link
 Prediction: Current Pitfalls and New Benchmarking"*.
@@ -20,6 +24,54 @@ Current scope:
 - framework: PyTorch Geometric
 - package manager: `uv`
 - status: HeaRT split + ranking metrics + full baseline suite + structural-PE ablation
+
+## Results
+
+**Final evaluation (HeaRT), 1 seed (seed 1).** Test-set MRR and Hits@10 in percent,
+500 hard negatives per positive, taken from `results/cora/*.json` and
+`results/pubmed/*.json` (also summarised in `results/HEART_RESULTS.md`).
+
+| Method | Cora MRR | Cora Hits@10 | PubMed MRR | PubMed Hits@10 |
+| --- | ---: | ---: | ---: | ---: |
+| Common Neighbors | 9.46 | 19.70 | 2.13 | 3.84 |
+| Adamic-Adar | 11.43 | 25.57 | 2.37 | 4.33 |
+| Personalized PageRank | **20.01** | **39.58** | **4.50** | **9.61** |
+| Node2Vec | 3.38 | 7.01 | – | – |
+| Feature-only MLP | 1.33 | 0.95 | 0.54 | 0.16 |
+| GCN | 4.53 | 10.23 | 3.38 | 6.52 |
+| GraphSAGE | 5.51 | 13.83 | 3.07 | 5.73 |
+| GAT | 12.49 | 29.17 | 2.29 | 3.47 |
+| GCN + structural PE | 1.78 | 1.52 | 2.57 | 5.10 |
+| GraphSAGE + structural PE | 5.12 | 12.31 | 1.75 | 2.66 |
+| GAT + structural PE | 10.92 | 24.05 | 1.93 | 3.41 |
+
+Node2Vec was not run on PubMed.
+
+**Retired midterm evaluation (`RandomLinkSplit`, random negatives).** Test ROC-AUC in
+percent, taken from `results/legacy_random_neg/`. Cora: mean ± sample standard
+deviation over 4 seeds (7, 13, 42, 67). PubMed: 1 seed (42).
+
+| Method | Cora ROC-AUC (4 seeds) | PubMed ROC-AUC (1 seed) |
+| --- | ---: | ---: |
+| Common Neighbors | 66.73 ± 0.47 | 61.72 |
+| Adamic-Adar | 66.77 ± 0.44 | 61.72 |
+| Personalized PageRank | 78.85 ± 0.68 | 81.37 |
+| Node2Vec | 68.55 ± 2.04 | 60.96 |
+| Feature-only MLP | **82.90 ± 1.32** | **93.49** |
+| GCN | 68.84 ± 1.55 | 87.66 |
+| GraphSAGE | 52.33 ± 3.57 | 78.57 |
+
+Under the retired protocol, random negatives scored by ROC-AUC, the feature-only
+MLP was the best model on both datasets. Under HeaRT it collapses to 1.33% MRR on
+Cora and 0.54% on PubMed, because the hard negatives are partly chosen by
+node-feature cosine similarity, the very signal the MLP relies on. Personalized
+PageRank is the strongest implemented model on both datasets, and GAT is the
+strongest trainable model on Cora. Common Neighbors and Adamic-Adar reproduce
+Table 4 of Li et al. within about 0.5 MRR points on Cora, and all three heuristics
+are within about 0.3 on PubMed. The exception is Personalized PageRank on Cora
+(20.01% against the paper's 13.34%), which the report attributes to the
+power-iteration PPR implementation. The full discussion is in
+`report/citegnn-report.tex`.
 
 ## Environment
 
