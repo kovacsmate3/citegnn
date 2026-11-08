@@ -1,4 +1,4 @@
-**[Read the detailed Project Report (PDF)](report/citegnn-report.pdf)**
+**[Read the detailed Project Report (PDF)](report/GNN_final_report.pdf)**
 
 
 # CiteGNN
