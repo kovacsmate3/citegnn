@@ -6,6 +6,7 @@
 This repository is a mirror of a four-person course project for the MSc Graph
 Neural Networks course at ELTE (Eötvös Loránd University), spring 2026, by
 Sándor Baranyi, Máté Kovács, Adorján Nagy-Mohos and Balázs Bordács.
+The code and documents are released under the MIT License (see `LICENSE`).
 
 Link prediction on citation networks (Cora, PubMed) under the **HeaRT** evaluation
 protocol from Li et al. (NeurIPS 2023), *"Evaluating Graph Neural Networks for Link
