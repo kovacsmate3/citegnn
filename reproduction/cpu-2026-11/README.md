@@ -45,8 +45,14 @@ Test set, percent. "Committed" is `results/<dataset>/<method>_seed1.json`.
 | Adamic-Adar | 2.37 | 2.37 | ±0.00 | 4.33 | 4.33 | ±0.00 |
 | Personalized PageRank | 4.50 | 4.50 | ±0.00 | 9.61 | 9.61 | ±0.00 |
 | Feature-only MLP | 0.54 | 0.54 | ±0.00 | 0.16 | 0.16 | ±0.00 |
+| GCN | 3.38 | 3.36 | −0.02 | 6.52 | 6.63 | +0.11 |
+| GraphSAGE | 3.07 | 3.19 | +0.12 | 5.73 | 5.78 | +0.05 |
+| GAT | 2.29 | 2.34 | +0.05 | 3.47 | 3.47 | ±0.00 |
+| GCN + structural PE | 2.57 | 2.70 | +0.13 | 5.10 | 5.53 | +0.43 |
+| GraphSAGE + structural PE | 1.75 | 1.78 | +0.04 | 2.66 | 2.44 | −0.23 |
+| GAT + structural PE | 1.93 | 1.95 | +0.02 | 3.41 | 3.61 | +0.20 |
 
-The PubMed GNN rows aren't rerun here.
+Node2Vec has no committed PubMed result and was skipped.
 
 ## What reproduces
 
@@ -54,14 +60,16 @@ The PubMed GNN rows aren't rerun here.
   AA and PPR are identical to the committed ones. On PubMed they are too, except PPR's
   average precision, which differs in the 16th significant digit.
 - **Feature-only MLP on PubMed**, to within 0.03 percentage points on every metric.
-- **Trainable models on Cora, approximately.** They use exactly the recorded configuration
+- **Trainable models, approximately.** They use exactly the recorded configuration
   (every `params` field matches except `best_epoch`), but training isn't bit-deterministic
-  across runs and machines, so early stopping picks a different epoch. Every model lands
-  within 1.3 MRR points of the committed value.
-- **The conclusions hold on Cora.** The top of the ranking is the same (PPR > GAT >
-  Adamic-Adar > GAT + PE > Common Neighbors), the feature-only MLP is last, and structural
-  PE lowers MRR for all three encoders (GCN 3.43 → 2.19, GraphSAGE 6.45 → 3.86,
-  GAT 13.63 → 11.22).
+  across runs and machines, so early stopping can pick a different epoch. On PubMed every
+  GNN lands within 0.13 MRR points of the committed value, on Cora within 1.3.
+- **The conclusions hold.** On PubMed the whole MRR ranking is unchanged, from PPR at the
+  top to the feature-only MLP at the bottom. On Cora the top of the ranking is the same
+  (PPR > GAT > Adamic-Adar > GAT + PE > Common Neighbors) and the MLP is last. On both
+  datasets structural PE lowers MRR for all three encoders (Cora: GCN 3.43 → 2.19,
+  GraphSAGE 6.45 → 3.86, GAT 13.63 → 11.22; PubMed: GCN 3.36 → 2.70, GraphSAGE
+  3.19 → 1.78, GAT 2.34 → 1.95).
 
 ## Timings
 
@@ -71,6 +79,8 @@ The PubMed GNN rows aren't rerun here.
 | Common Neighbors / Adamic-Adar / PPR | 0.2 s / 0.1 s / 3.3 s | 1.7 s / 2.1 s / 74.5 s |
 | Node2Vec | 180 s | skipped |
 | Feature-only MLP | 34 s | 39 s |
-| GCN / GraphSAGE / GAT | 226 s / 469 s / 327 s | |
-| GCN / GraphSAGE / GAT + structural PE | 161 s / 299 s / 271 s | |
-| **Full Cora sweep** | **33 min** (1,972 s) | |
+| GCN / GraphSAGE / GAT | 226 s / 469 s / 327 s | 2,102 s / 407 s / 646 s |
+| GCN / GraphSAGE / GAT + structural PE | 161 s / 299 s / 271 s | 852 s / 451 s / 606 s |
+| **Full sweep** | **33 min** (1,972 s) | **89 min** (5,353 s, incl. split) |
+
+The first 33 minutes of the PubMed sweep shared the CPU with the Cora sweep.

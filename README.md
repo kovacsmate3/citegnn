@@ -75,11 +75,12 @@ power-iteration PPR implementation. The full discussion is in
 `report/citegnn-report.tex`.
 
 **Reproduction.** A CPU rerun of the sweep in November 2026, with the recorded
-configurations, is in `reproduction/cpu-2026-11/`. The Cora sweep took 33 minutes
-on a laptop CPU. The heuristic rows reproduce exactly on both datasets. The
-trainable models aren't bit-deterministic across runs, and on Cora they landed
-within 1.3 MRR points of the table above (GAT 13.63, GraphSAGE 6.45, GCN 3.43).
-The ranking at the top and the structural-PE conclusion are unchanged.
+configurations, is in `reproduction/cpu-2026-11/`. On a laptop CPU the Cora sweep
+took 33 minutes and the PubMed sweep 89. The heuristic rows reproduce exactly on
+both datasets. The trainable models aren't bit-deterministic across runs: on
+PubMed they landed within 0.13 MRR points of the table above, on Cora within 1.3
+(GAT 13.63, GraphSAGE 6.45, GCN 3.43). The PubMed ranking is unchanged, and so are
+the Cora top ranking and the structural-PE conclusion.
 
 ## Environment
 
