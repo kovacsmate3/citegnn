@@ -96,8 +96,12 @@ Run the unit-test suite:
 ```bash
 uv run python -m compileall src scripts
 uv run mypy src scripts
-PYTHONPATH=src uv run python -m unittest discover -s tests -v
+PYTHONPATH=src uv run coverage run -m unittest discover -s tests -v
+uv run coverage report
 ```
+
+GitHub Actions runs the same checks on every push to `main` and on pull requests
+(`.github/workflows/ci.yml`, mirroring the team's `.gitlab-ci.yml`).
 
 ## CUDA Override
 
@@ -160,13 +164,17 @@ using as primary signals.
 
 ```bash
 python scripts/run_all_heart.py --dataset Cora --seed 1
-python scripts/run_all_heart.py --dataset PubMed --seed 1 \
-    --gnn-eval-every 5 --feature-only-eval-every 5
+python scripts/run_all_heart.py --dataset PubMed --seed 1
 ```
 
-`--gnn-eval-every` and `--feature-only-eval-every` reduce the eval frequency
-during training (HeaRT eval is the bottleneck on PubMed). Use `--skip` to leave
-specific baselines out, e.g. `--skip node2vec gnn_pe`.
+The trainable baselines use the configurations behind the reported numbers: the
+`params` recorded in `results/<dataset>/*_seed1.json`, collected in
+`RECORDED_CONFIGS` at the top of the script (a unit test keeps the two in sync).
+`--gnn-epochs`, `--gnn-eval-every`, `--gnn-patience`, the `--feature-only-*`
+options and `--node2vec-epochs` override one field for every model of that
+family. Use `--skip` to leave specific baselines out, e.g.
+`--skip node2vec gnn_pe`. The single-baseline scripts in step 2 keep their own,
+untuned defaults.
 
 ### 4. Aggregate + compare to the published HeaRT numbers
 
