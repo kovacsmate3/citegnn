@@ -74,6 +74,13 @@ are within about 0.3 on PubMed. The exception is Personalized PageRank on Cora
 power-iteration PPR implementation. The full discussion is in
 `report/citegnn-report.tex`.
 
+**Reproduction.** A CPU rerun of the sweep in November 2026, with the recorded
+configurations, is in `reproduction/cpu-2026-11/`. The Cora sweep took 33 minutes
+on a laptop CPU. The heuristic rows reproduce exactly on both datasets. The
+trainable models aren't bit-deterministic across runs, and on Cora they landed
+within 1.3 MRR points of the table above (GAT 13.63, GraphSAGE 6.45, GCN 3.43).
+The ranking at the top and the structural-PE conclusion are unchanged.
+
 ## Environment
 
 The shared project configuration defaults to CPU PyTorch wheels through `uv`.
