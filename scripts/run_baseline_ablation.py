@@ -140,8 +140,6 @@ def _print_saved_result(
     _, summary = save_and_describe_experiment_result(
         result,
         output_dir=result_output_dir,
-        include_validation_auc=False,
-        include_test_average_precision=True,
     )
     print(summary)
 
