@@ -200,12 +200,13 @@ def _binary_average_precision(labels: Tensor, scores: Tensor) -> float:
 
 def _merge_metrics(
     ranking: RankingMetrics,
-    classification: ClassificationMetrics,
+    classification: ClassificationMetrics | None,
 ) -> dict[str, float]:
     payload: dict[str, float] = {}
     payload.update({k: float(v) for k, v in ranking.to_dict().items()})
-    for key, value in classification.to_dict().items():
-        payload[key] = float(value)
+    if classification is not None:
+        for key, value in classification.to_dict().items():
+            payload[key] = float(value)
     return payload
 
 

@@ -113,7 +113,7 @@ class GNNBaselineConfig:
         if not 0.0 <= self.gat_attention_dropout < 1.0:
             raise ValueError("gat_attention_dropout must be in [0, 1)")
 
-    def to_dict(self) -> dict[str, int | float | bool]:
+    def to_dict(self) -> dict[str, int | float | bool | str]:
         return {
             "hidden_dim": self.hidden_dim,
             "num_layers": self.num_layers,
@@ -247,7 +247,7 @@ class _DotProductDecoder(nn.Module):
 
 
 class _LinkPredictionModel(nn.Module):
-    def __init__(self, encoder: nn.Module, decoder: _HadamardMLPDecoder) -> None:
+    def __init__(self, encoder: nn.Module, decoder: nn.Module) -> None:
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder
